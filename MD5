@@ -1,7 +1,8 @@
-82b3440ccf727fbb18cfe97768bccc53 *DESCRIPTION
+1a6e675fb8feaeea5eda954234a481f9 *DESCRIPTION
 be4663df1de694744dc1a4a18ae636bc *NAMESPACE
+32925863ed6adf305242b2b82df3cfa9 *NEWS.md
 b75c62a396a55aea2c94a70036d9891d *R/ATA_class.R
-5d8a19aeffa8cd1d7d7790218b24c8bd *R/ATA_functions.R
+c1c2130aa7f7d11e55457b8b55c9ced4 *R/ATA_functions.R
 d2ed4fb58f2984bd6281030cedcddf4b *R/RcppExports.R
 8b6e7c02165d12746cbcf24329e93d9f *R/datasets.R
 ca3b965f2ca8af060fab95ac8302b9a6 *R/import.R
@@ -9,10 +10,10 @@ ca3b965f2ca8af060fab95ac8302b9a6 *R/import.R
 ff4bceadc15b913382cc4c52e4741ad6 *R/item_functions.R
 df3e05395b784e737b4797bf72f3e69f *R/loading_functions.R
 3568daf22be3be9780aee7d66fb263ce *R/runshiny.R
-7ec4e35e0faa4995e2777532bbf77a05 *R/shadow_class.R
-c7434cf5e419d721d805ac4cf671c315 *R/shadow_functions.R
+8a23c2cb643365adc0497452845ae232 *R/shadow_class.R
+ec2b3ea0b015eac2ac6bd11e179bfaed *R/shadow_functions.R
 fdaee39c8b9676cbad54bc75ec530b71 *R/solver_functions.R
-250408c942be396216b007cc064cc8c1 *build/partial.rdb
+e48f15cde6d4f1c0bc55964d2038521d *build/partial.rdb
 adb3499d55858c01047faad971d3ac05 *build/vignette.rds
 e341fdc84b17e2c142f5a44ec15e8984 *data/constraints_fatigue.rda
 e8d178d7b0580327e95171fa845d7ca4 *data/constraints_fatigue_raw.rda
@@ -37,11 +38,11 @@ bfb6b5c05ad961d7cd7f57a1b23d5a71 *data/itempool_reading.rda
 f61e5e7f6c1349d9992882fc976ca4e0 *data/stimattrib_reading.rda
 e4871ef59b03b8ddf1c8c44b525a5cf8 *data/stimattrib_reading_raw.rda
 8655d702d29bd5b5d8c34a81d23edadd *inst/REFERENCES.bib
-2653ee41b5051ee5061fe4bd8f26a820 *inst/doc/constraints.R
-ab8433c92c998e482bf2264f18626501 *inst/doc/constraints.Rmd
-5526e873019eb543e0dbdb6ac7704ff9 *inst/doc/constraints.html
+113bf24f1039e9d7272ed122233b5477 *inst/doc/constraints.R
+03053108e33c42d02870a1c6900ee948 *inst/doc/constraints.Rmd
+f2dc710b12db4b338eb7ecbdc43e0d38 *inst/doc/constraints.html
 61ab163c34a51ecede5bef2ea30b009b *inst/doc/rsymphony.Rmd
-2ed7a3b826a56056ed2481c73834afe3 *inst/doc/rsymphony.html
+6f82ace5c138e8eeaea64860d1393675 *inst/doc/rsymphony.html
 7f43cab46253080caf1f8d524f2d578f *inst/shiny/app.R
 2459a00345514f9cbe8d385f59304583 *man/ATA-methods.Rd
 c5e2e941554086bede40e3f219d520b9 *man/OAT.Rd
@@ -160,5 +161,5 @@ d8e88b8ccadf7d2536947251873acee6 *src/RcppExports.cpp
 d8a07d8e807555cbc0b6cfa0bf752147 *tests/testthat/test-examples.R
 93466df8817dd4daf4f4500ee0dbb972 *tests/testthat/test-exposure.R
 781768831c28a132119244d35224ba94 *tests/testthat/test-items.R
-ab8433c92c998e482bf2264f18626501 *vignettes/constraints.Rmd
+03053108e33c42d02870a1c6900ee948 *vignettes/constraints.Rmd
 61ab163c34a51ecede5bef2ea30b009b *vignettes/rsymphony.Rmd

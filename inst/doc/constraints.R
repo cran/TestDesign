@@ -1,38 +1,126 @@
-## ---- eval = F-----------------------------------------------------------
-#  CONSTRAINT,TYPE,WHAT,CONDITION,LB,UB,ONOFF
-#  1,Number,Item,,30,30,
-#  2,Number,Item,LEVEL == 3,10,10,
-#  3,Number,Item,LEVEL == 4,10,10,
-#  4,Number,Item,LEVEL == 5,10,10,
-#  5,Number,Item,STANDARD == 1,17,20,
+## ----echo = FALSE, message = FALSE---------------------------------------
+library(knitr)
+library(kableExtra)
+library(TestDesign)
 
-## ---- eval = F-----------------------------------------------------------
-#  1,Number,Item,,30,30
+## ----echo = FALSE--------------------------------------------------------
+knitr::kable(constraints_science_raw[1:5, ]) %>%
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>%
+  column_spec(1, "5em") %>%
+  column_spec(2, "5em") %>%
+  column_spec(3, "5em") %>%
+  column_spec(4, "10em") %>%
+  column_spec(5, "3em") %>%
+  column_spec(6, "3em") %>%
+  column_spec(7, "3em")
 
-## ---- eval = F-----------------------------------------------------------
-#  32,Order,Item,LEVEL,,
+## ---- echo = FALSE-------------------------------------------------------
+knitr::kable(constraints_science_raw[1, ], row.names = FALSE) %>%
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>%
+  column_spec(1, "5em") %>%
+  column_spec(2, "5em", background = 'cyan') %>%
+  column_spec(3, "5em") %>%
+  column_spec(4, "10em") %>%
+  column_spec(5, "3em") %>%
+  column_spec(6, "3em") %>%
+  column_spec(7, "3em")
 
-## ---- eval = F-----------------------------------------------------------
-#  33,Enemy,Item,"ID %in% c(""SC00001"", ""SC00002"")",,
+## ---- echo = FALSE-------------------------------------------------------
+knitr::kable(constraints_science_raw[32, ], row.names = FALSE) %>%
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>%
+  column_spec(1, "5em") %>%
+  column_spec(2, "5em", background = 'cyan') %>%
+  column_spec(3, "5em") %>%
+  column_spec(4, "10em") %>%
+  column_spec(5, "3em") %>%
+  column_spec(6, "3em") %>%
+  column_spec(7, "3em")
 
-## ---- eval = F-----------------------------------------------------------
-#  34,Include,Item,"ID %in% c(""SC00003"", ""SC00004"")",,
+## ---- echo = FALSE-------------------------------------------------------
+knitr::kable(constraints_science_raw[33, ], row.names = FALSE) %>%
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>%
+  column_spec(1, "5em") %>%
+  column_spec(2, "5em", background = 'cyan') %>%
+  column_spec(3, "5em") %>%
+  column_spec(4, "10em") %>%
+  column_spec(5, "3em") %>%
+  column_spec(6, "3em") %>%
+  column_spec(7, "3em")
 
-## ---- eval = F-----------------------------------------------------------
-#  35,Exclude,Item,PTBIS < 0.15,,
+## ---- echo = FALSE-------------------------------------------------------
+knitr::kable(constraints_science_raw[34, ], row.names = FALSE) %>%
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>%
+  column_spec(1, "5em") %>%
+  column_spec(2, "5em", background = 'cyan') %>%
+  column_spec(3, "5em") %>%
+  column_spec(4, "10em") %>%
+  column_spec(5, "3em") %>%
+  column_spec(6, "3em") %>%
+  column_spec(7, "3em")
 
-## ---- eval = F-----------------------------------------------------------
-#  36,AllOrNone,Item,"ID %in% c(""SC00005"", ""SC00006"")",,
+## ---- echo = FALSE-------------------------------------------------------
+knitr::kable(constraints_science_raw[35, ], row.names = FALSE) %>%
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>%
+  column_spec(1, "5em") %>%
+  column_spec(2, "5em", background = 'cyan') %>%
+  column_spec(3, "5em") %>%
+  column_spec(4, "10em") %>%
+  column_spec(5, "3em") %>%
+  column_spec(6, "3em") %>%
+  column_spec(7, "3em")
 
-## ---- eval = F-----------------------------------------------------------
-#  3,Number,Item,Per Stimulus,4,6,
+## ---- echo = FALSE-------------------------------------------------------
+knitr::kable(constraints_science_raw[36, ], row.names = FALSE) %>%
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>%
+  column_spec(1, "5em") %>%
+  column_spec(2, "5em", background = 'cyan') %>%
+  column_spec(3, "5em") %>%
+  column_spec(4, "10em") %>%
+  column_spec(5, "3em") %>%
+  column_spec(6, "3em") %>%
+  column_spec(7, "3em")
 
-## ---- eval = F-----------------------------------------------------------
-#  1,Number,Item,,12,12
+## ---- echo = FALSE-------------------------------------------------------
+knitr::kable(constraints_reading_raw[3, ], row.names = FALSE) %>%
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>%
+  column_spec(1, "5em") %>%
+  column_spec(2, "5em") %>%
+  column_spec(3, "5em") %>%
+  column_spec(4, "10em", background = 'cyan') %>%
+  column_spec(5, "3em") %>%
+  column_spec(6, "3em") %>%
+  column_spec(7, "3em")
 
-## ---- eval = F-----------------------------------------------------------
-#  17,Number,Item,DOK >= 2,15,30,
+## ---- echo = FALSE-------------------------------------------------------
+knitr::kable(constraints_fatigue_raw[1, ], row.names = FALSE) %>%
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>%
+  column_spec(1, "5em") %>%
+  column_spec(2, "5em") %>%
+  column_spec(3, "5em") %>%
+  column_spec(4, "10em") %>%
+  column_spec(5, "3em", background = 'cyan') %>%
+  column_spec(6, "3em", background = 'cyan') %>%
+  column_spec(7, "3em")
 
-## ---- eval = F-----------------------------------------------------------
-#  18,Order,Passage,CONTENT,,,OFF
+## ---- echo = FALSE-------------------------------------------------------
+knitr::kable(constraints_reading_raw[17, ], row.names = FALSE) %>%
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>%
+  column_spec(1, "5em") %>%
+  column_spec(2, "5em") %>%
+  column_spec(3, "5em") %>%
+  column_spec(4, "10em") %>%
+  column_spec(5, "3em", background = 'cyan') %>%
+  column_spec(6, "3em", background = 'cyan') %>%
+  column_spec(7, "3em")
+
+## ---- echo = FALSE-------------------------------------------------------
+knitr::kable(constraints_reading_raw[18, ], row.names = FALSE) %>%
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>%
+  column_spec(1, "5em") %>%
+  column_spec(2, "5em") %>%
+  column_spec(3, "5em") %>%
+  column_spec(4, "10em") %>%
+  column_spec(5, "3em") %>%
+  column_spec(6, "3em") %>%
+  column_spec(7, "3em", background = 'cyan')
 
