@@ -1,3 +1,18 @@
+# TestDesign 0.2.5
+
+## Bug fixes
+
+* Fix where `gap_limit` was passed onto `SYMPHONY` in `ATA()` and `Shadow()`, instead of `gap_limit_abs`.
+* Fix where `gap_limit` was not passed onto `GUROBI` in `ATA()` and `Shadow()`.
+* Fix where `time_limit` was not passed onto `GUROBI` in `Shadow()`.
+* Fix where `time_limit` was incorrectly passed in microseconds to `GLPK` in `Shadow()`.
+* Fix where a valid interval-based refresh policy triggered an error in `Shadow()`.
+* Prevent the Shiny app from crashing when the user erroneously requests an adaptive assembly with a set-based refresh policy on item pools with no item sets.
+
+## Others
+
+* Explicitly add `obj_tol` in `config_ATA@MIP` to allow for controlling objective value tolerance.
+
 # TestDesign 0.2.3
 
 ## Bug fixes

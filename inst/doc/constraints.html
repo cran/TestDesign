@@ -279,7 +279,6 @@ code {
 }
 img {
   max-width:100%;
-  height: auto;
 }
 .tabbed-pane {
   padding-top: 12px;
@@ -378,8 +377,9 @@ summary {
 </div>
 
 
-<div id="introduction" class="section level2">
-<h2>Introduction</h2>
+<p><br /></p>
+<div id="introduction" class="section level3">
+<h3>Introduction</h3>
 <p>This document explains how to create a constraint file. In test assembly, practitioners often want to select the items that satify various types of constraints. As of <em>TestDesign</em> version 0.2, constraints can be read in from a <code>.csv</code> spreadsheet file. The file is expected to be in the following structure:</p>
 <table class="table table-striped table-hover table-condensed table-responsive" style="margin-left: auto; margin-right: auto;">
 <thead>
@@ -525,21 +525,18 @@ NA
 </tbody>
 </table>
 <p>The constraint file should have 7 columns, named as <code>CONSTRAINT</code>, <code>TYPE</code>, <code>WHAT</code>, <code>CONDITION</code>, <code>LB</code>, <code>UB</code>, <code>ONOFF</code> on the first row of the file. Beginning from the second row, each row should have the corresponding values for the 7 columns. A convenient way to creating the file is to use a spreadsheet application (e.g. Excel), work on the contents from there, and then saving it as a <code>.csv</code> file.</p>
-<p><br />
-</p>
+<p><br /></p>
 <hr />
 <div id="constraint" class="section level4">
 <h4>CONSTRAINT</h4>
 <p>This column serves as indices for the constraints. A single numeric value should be put into each row, incrementing by 1.</p>
-<p><br />
-</p>
+<p><br /></p>
 <hr />
 </div>
 <div id="type" class="section level4">
 <h4>TYPE</h4>
 <p>This column specifies the type of constraint. Following values are expected: <code>Number</code>, <code>Order</code>, <code>Enemy</code>, <code>Include</code>, <code>Exclude</code>, <code>AllorNone</code>.</p>
-<p><br />
-</p>
+<p><br /></p>
 <ul>
 <li><code>Number</code> specifies the constraint to be applied to the number of selected items (if <code>WHAT</code> column is <code>Item</code>), or to the number of selected item sets (if <code>WHAT</code> column is <code>Stimulus</code>). For example, the following row tells the solver to select a total of 30 items.</li>
 </ul>
@@ -594,9 +591,7 @@ NA
 </tr>
 </tbody>
 </table>
-<p><br />
-<br />
-</p>
+<p><br /> <br /></p>
 <ul>
 <li><code>Order</code> specifies the selection to be made in ascending order. The following row tells the solver to select the items in ascending <code>LEVEL</code>, based on the supplied item attributes.</li>
 </ul>
@@ -652,9 +647,7 @@ NA
 </tr>
 </tbody>
 </table>
-<p><br />
-<br />
-</p>
+<p><br /> <br /></p>
 <ul>
 <li><code>Enemy</code> specifies the items (or item sets) matching the condition to be treated as enemy items. To tell the solver to select at most one of the two items:</li>
 </ul>
@@ -710,9 +703,7 @@ NA
 </tr>
 </tbody>
 </table>
-<p><br />
-<br />
-</p>
+<p><br /> <br /></p>
 <ul>
 <li><code>Include</code> specifies the items matching the condition to be included in selection. For example, the following row tells the solver to include the two items <code>SC00003</code> and <code>SC00004</code>:</li>
 </ul>
@@ -768,9 +759,7 @@ NA
 </tr>
 </tbody>
 </table>
-<p><br />
-<br />
-</p>
+<p><br /> <br /></p>
 <ul>
 <li><code>Exclude</code> specifies the items matching the condition to be excluded in selection. The following row tells the solver to exclude the items satisfying <code>PTBIS &lt; 0.15</code>, based on the supplied item attributes.</li>
 </ul>
@@ -826,9 +815,7 @@ NA
 </tr>
 </tbody>
 </table>
-<p><br />
-<br />
-</p>
+<p><br /> <br /></p>
 <ul>
 <li><code>AllOrNone</code> specifies the items matching the condition to be either all included or all excluded. To tell the solver to either select the items <code>SC00005</code> and <code>SC00006</code> at the same time or exclude them at the same time:</li>
 </ul>
@@ -884,15 +871,13 @@ NA
 </tr>
 </tbody>
 </table>
-<p><br />
-</p>
+<p><br /></p>
 <hr />
 </div>
 <div id="what" class="section level4">
 <h4>WHAT</h4>
 <p>This column specifies where the constraint is applied. The expected values are <code>Item</code> or <code>Stimulus</code>.</p>
-<p><br />
-</p>
+<p><br /></p>
 <hr />
 </div>
 <div id="condition" class="section level4">
@@ -957,8 +942,7 @@ Per Stimulus
 </tr>
 </tbody>
 </table>
-<p><br />
-</p>
+<p><br /></p>
 <hr />
 </div>
 <div id="lb-and-ub" class="section level4">
@@ -1019,9 +1003,7 @@ NA
 </tr>
 </tbody>
 </table>
-<p><br />
-<br />
-</p>
+<p><br /> <br /></p>
 <ul>
 <li>To select 15 to 30 items satisfying <code>DOK &gt;= 2</code>:</li>
 </ul>
@@ -1076,8 +1058,7 @@ DOK &gt;= 2
 </tr>
 </tbody>
 </table>
-<p><br />
-</p>
+<p><br /></p>
 <hr />
 </div>
 <div id="onoff" class="section level4">
@@ -1135,6 +1116,7 @@ OFF
 </tr>
 </tbody>
 </table>
+<p><br /></p>
 </div>
 </div>
 
