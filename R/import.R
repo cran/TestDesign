@@ -20,7 +20,7 @@
 # Always give full names for slot references. (e.g. "@foo$bar")
 
 #' @import Matrix
-#' @import lpsymphony
+#' @import lpSolve
 #' @import Rcpp methods
 #' @import foreach
 #' @import crayon
@@ -36,7 +36,7 @@ NULL
 
 #' @noRd
 .onAttach <- function(libname, pkgname) {
-  solver_names <- c("lpsymphony", "Rsymphony", "gurobi", "lpSolve", "Rglpk")
+  solver_names <- c("lpSolve", "Rsymphony", "lpsymphony", "gurobi", "Rglpk")
 
   for (s in solver_names) {
     x <- find.package(s, quiet = TRUE)
@@ -64,5 +64,3 @@ setClassUnion("character_or_null", c("character",  "NULL"))
 setClassUnion("numeric_or_null",   c("numeric",    "NULL"))
 setClassUnion("matrix_or_null",    c("matrix",     "NULL"))
 setClassUnion("list_or_null",      c("list",       "NULL"))
-
-`%not in%` <- Negate(`%in%`)
