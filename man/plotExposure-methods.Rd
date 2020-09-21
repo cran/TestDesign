@@ -4,7 +4,8 @@
 \name{plotExposure}
 \alias{plotExposure}
 \alias{plotExposure,list-method}
-\title{Draw an item exposure plot}
+\alias{plotExposure,output_Shadow_all-method}
+\title{(deprecated) Plot item exposure rates}
 \usage{
 plotExposure(
   object,
@@ -17,6 +18,16 @@ plotExposure(
 )
 
 \S4method{plotExposure}{list}(
+  object,
+  max_rate = 0.25,
+  theta_segment = "estimated",
+  color = "blue",
+  color_final = "blue",
+  file_pdf = NULL,
+  ...
+)
+
+\S4method{plotExposure}{output_Shadow_all}(
   object,
   max_rate = 0.25,
   theta_segment = "estimated",
@@ -42,12 +53,12 @@ plotExposure(
 \item{...}{Additional options to be passed on to \code{pdf()}.}
 }
 \description{
-Draw a plot of item exposure rates
+(deprecated) Use \code{\link[TestDesign:plot-methods]{plot}} with \code{type = 'exposure'} instead.
 }
 \examples{
-\donttest{
+\dontrun{
 true_theta <- runif(10, min = -3.5, max = 3.5)
-resp_science <- makeTest(itempool_science, info_type = "FISHER", true_theta = true_theta)@data
+resp_science <- simResp(itempool_science, true_theta)
 constraints_science2 <- updateConstraints(constraints_science, off = c(14:20, 32:36))
 config_science <- createShadowTestConfig(
   MIP = list(solver = "lpSolve"),

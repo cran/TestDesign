@@ -2,25 +2,26 @@
 % Please edit documentation in R/loading_functions.R
 \name{updateConstraints}
 \alias{updateConstraints}
-\title{Update constraints}
+\title{(deprecated) Update constraints}
 \usage{
 updateConstraints(object, on = NULL, off = NULL)
 }
 \arguments{
-\item{object}{A \code{\linkS4class{constraints}} object from \code{\link{loadConstraints}}.}
+\item{object}{a \code{\linkS4class{constraints}} object from \code{\link{loadConstraints}}.}
 
-\item{on}{a vector of constraints index to turn on.}
+\item{on}{constraint indices to mark as active.}
 
-\item{off}{a vector of constraints index to turn off.}
+\item{off}{constraint indices to mark as inactive.}
 }
 \value{
-An updated \code{\linkS4class{constraints}} object, to be used in \code{\link{Static}} and \code{\link{Shadow}}.
+\code{\link{updateConstraints}} returns the updated \code{\linkS4class{constraints}} object.
 }
 \description{
-Update the constraints list
+Use \code{\link{toggleConstraints}} instead.
 }
 \examples{
+\dontrun{
 constraints_science2 <- updateConstraints(constraints_science, off = 32:36)
 constraints_science3 <- updateConstraints(constraints_science, on = 32:36)
-
+}
 }

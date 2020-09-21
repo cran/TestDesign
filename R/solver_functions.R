@@ -20,9 +20,7 @@ NULL
 #' }
 #'
 #' @references
-#' \insertRef{van_der_linden_linear_2005}{TestDesign}
-#'
-
+#' @template mipbook-ref
 runAssembly <- function(config, constraints, xdata = NULL, objective = NULL) {
 
   ni    <- constraints@ni
@@ -42,7 +40,7 @@ runAssembly <- function(config, constraints, xdata = NULL, objective = NULL) {
   obj   <- numeric(nv)
   types <- rep("B", nv)
 
-  if (class(config) == "config_Static") {
+  if (inherits(config, "config_Static")) {
 
     sort_by_info <- FALSE
 
@@ -83,7 +81,7 @@ runAssembly <- function(config, constraints, xdata = NULL, objective = NULL) {
 
   }
 
-  if (class(config) == "config_Shadow") {
+  if (inherits(config, "config_Shadow")) {
 
     if (all(length(objective) != nv, length(objective) != ni)) {
       stop(sprintf("length of 'objective' must be %s or %s", nv, ni))
@@ -113,13 +111,32 @@ runAssembly <- function(config, constraints, xdata = NULL, objective = NULL) {
 
   solve_time <- proc.time()
 
-  MIP <- runMIP(solver, obj, mat, dir, rhs,
-                maximize, types,
-                verbosity, time_limit,
-                gap_limit_abs, gap_limit)
+  MIP <- runMIP(
+    solver, obj, mat, dir, rhs,
+    maximize, types,
+    verbosity, time_limit,
+    gap_limit_abs, gap_limit
+  )
+
+  if (config@MIP$retry > 0 & !isOptimal(MIP$status, solver)) {
+    # if errors, run again to check if it is indeed an error
+    # some solvers error even when a solution exists
+    n_retry <- 0
+    while (TRUE) {
+      n_retry <- n_retry + 1
+      MIP <- runMIP(
+        solver, obj, mat, dir, rhs,
+        maximize, types,
+        verbosity, time_limit,
+        gap_limit_abs, gap_limit
+      )
+      if (isOptimal(MIP$status, solver) | n_retry == config@MIP$retry) {
+        break
+      }
+    }
+  }
 
   if (!isOptimal(MIP$status, solver)) {
-    warning(notOptimal(MIP$status, solver))
     return(list(status = MIP$status, MIP = MIP, selected = NULL))
   }
 
@@ -136,14 +153,14 @@ runAssembly <- function(config, constraints, xdata = NULL, objective = NULL) {
                                      constraints@st_attrib@data[c("STINDEX", "STID", constraints@stim_order_by)],
                                      by = "STID", all.x = TRUE, sort = FALSE)
     constraints@item_attrib@data <- constraints@item_attrib@data[order(constraints@item_attrib@data$tmpsort), ]
-    constraints@item_attrib@data <- constraints@item_attrib@data[, !(colnames(constraints@item_attrib@data) %in% 'tmpsort')]
+    constraints@item_attrib@data <- constraints@item_attrib@data[, !(colnames(constraints@item_attrib@data) %in% "tmpsort")]
   } else if (!is.null(constraints@st_attrib)) {
     constraints@item_attrib@data$tmpsort <- 1:constraints@ni
     constraints@item_attrib@data <- merge(constraints@item_attrib@data,
                                      constraints@st_attrib@data[c("STINDEX", "STID")],
                                      by = "STID", all.x = TRUE, sort = FALSE)
     constraints@item_attrib@data <- constraints@item_attrib@data[order(constraints@item_attrib@data$tmpsort), ]
-    constraints@item_attrib@data <- constraints@item_attrib@data[, !(colnames(constraints@item_attrib@data) %in% 'tmpsort')]
+    constraints@item_attrib@data <- constraints@item_attrib@data[, !(colnames(constraints@item_attrib@data) %in% "tmpsort")]
   }
 
   # Common logic for attribute parsing
@@ -203,7 +220,6 @@ runAssembly <- function(config, constraints, xdata = NULL, objective = NULL) {
 }
 
 #' @noRd
-
 runMIP <- function(solver, obj, mat, dir, rhs, maximize, types,
                    verbosity, time_limit, gap_limit_abs, gap_limit) {
 
@@ -281,7 +297,6 @@ runMIP <- function(solver, obj, mat, dir, rhs, maximize, types,
 }
 
 #' @noRd
-
 isOptimal <- function(status, solver) {
   is_optimal <- FALSE
   if (toupper(solver) == "LPSYMPHONY") {
@@ -299,8 +314,7 @@ isOptimal <- function(status, solver) {
 }
 
 #' @noRd
-
-notOptimal <- function(status, solver) {
+getSolverStatusMessage <- function(status, solver) {
   if (toupper(solver) == "LPSYMPHONY") {
     tmp <- sprintf("MIP solver returned non-zero status: %s", names(status))
   } else if (toupper(solver) == "RSYMPHONY") {
@@ -313,4 +327,50 @@ notOptimal <- function(status, solver) {
     tmp <- sprintf("MIP solver returned non-zero status: %s", status)
   }
   return(tmp)
+}
+
+#' @noRd
+printSolverNewline <- function(solver) {
+  if (toupper(solver) == "LPSYMPHONY") {
+    cat("\n")
+  } else if (toupper(solver) == "RSYMPHONY") {
+    cat("\n")
+  }
+}
+
+#' @noRd
+validateSolver <- function(config, constraints) {
+
+  if (constraints@set_based) {
+    if (!toupper(config@MIP$solver) %in%  c("LPSYMPHONY", "RSYMPHONY", "GUROBI")) {
+
+      if (!interactive()) {
+        txt <- paste(
+          sprintf("Set-based assembly with %s is not allowed in non-interactive mode", config@MIP$solver),
+          "(allowed solvers: LPSYMPHONY, RSYMPHONY, or GUROBI)",
+          sep = " "
+        )
+        warning(txt)
+        return(FALSE)
+      }
+
+      txt <- paste(
+        sprintf("Set-based assembly with %s takes a long time.", config@MIP$solver),
+        "Recommended solvers: LPSYMPHONY, RSYMPHONY, or GUROBI",
+        sep = "\n"
+      )
+
+      choices <- c(
+        sprintf("Proceed with %s", config@MIP$solver),
+        "Abort"
+      )
+      input <- menu(choices, FALSE, txt)
+
+      return(input == 1)
+
+    }
+  }
+
+  return(TRUE)
+
 }

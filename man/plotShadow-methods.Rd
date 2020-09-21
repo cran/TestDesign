@@ -3,10 +3,20 @@
 \docType{methods}
 \name{plotShadow}
 \alias{plotShadow}
+\alias{plotShadow,output_Shadow_all-method}
 \alias{plotShadow,list-method}
-\title{Draw a shadow test chart}
+\title{(deprecated) Plot a shadow test chart}
 \usage{
 plotShadow(
+  object,
+  examinee_id = 1,
+  sort_by_difficulty = FALSE,
+  file_pdf = NULL,
+  simple = FALSE,
+  ...
+)
+
+\S4method{plotShadow}{output_Shadow_all}(
   object,
   examinee_id = 1,
   sort_by_difficulty = FALSE,
@@ -38,13 +48,14 @@ plotShadow(
 \item{...}{Additional options to be passed on to \code{pdf()}.}
 }
 \description{
-Draw a chart of shadow tests constructed for each simulee. The index of a column represents the position of item administration process, and each column represents the item pool.
+(deprecated) Use \code{\link[TestDesign:plot-methods]{plot}} with \code{type = 'shadow'} instead.
 }
 \examples{
+\dontrun{
 config <- createShadowTestConfig()
 true_theta <- rnorm(1)
 solution <- Shadow(config, constraints_science, true_theta)
 plotShadow(solution, 1)
 plotShadow(solution, 1, simple = TRUE)
-
+}
 }

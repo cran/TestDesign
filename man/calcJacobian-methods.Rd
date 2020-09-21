@@ -40,63 +40,66 @@ calcJacobian(object, theta, resp)
 \S4method{calcJacobian}{pool_cluster,numeric,list}(object, theta, resp)
 }
 \arguments{
-\item{object}{An instance of an item class.}
+\item{object}{an \code{\link{item}} or an \code{\linkS4class{item_pool}} object.}
 
-\item{theta}{A vector of theta values.}
+\item{theta}{theta values to use.}
 
-\item{resp}{Response data.}
+\item{resp}{the response data to use.}
 }
 \value{
-First derivative values of log-likelihoods.
+\code{\link{calcJacobian}} returns first derivative values of log-likelihoods.
 }
 \description{
-An S4 generic and its methods to calculate the first derivative of the log-likelihood function.
+\code{\link{calcJacobian}} is a function to calculate the first derivative of the log-likelihood function.
 }
 \examples{
-item_1   <- new("item_1PL", difficulty = 0.5)
+item_1    <- new("item_1PL", difficulty = 0.5)
+item_2    <- new("item_2PL", slope = 1.0, difficulty = 0.5)
+item_3    <- new("item_3PL", slope = 1.0, difficulty = 0.5, guessing = 0.2)
+item_4    <- new("item_PC", threshold = c(-1, 0, 1), ncat = 4)
+item_5    <- new("item_GPC", slope = 1.2, threshold = c(-0.8, -1.0, 0.5), ncat = 4)
+item_6    <- new("item_GR", slope = 0.9, category = c(-1, 0, 1), ncat = 4)
+
 j_item_1 <- calcJacobian(item_1, seq(-3, 3, 1), 0)
-item_2   <- new("item_2PL", slope = 1.0, difficulty = 0.5)
 j_item_2 <- calcJacobian(item_2, seq(-3, 3, 1), 0)
-item_3   <- new("item_3PL", slope = 1.0, difficulty = 0.5, guessing = 0.2)
 j_item_3 <- calcJacobian(item_3, seq(-3, 3, 1), 0)
-item_4   <- new("item_PC", threshold = c(-1, 0, 1), ncat = 4)
 j_item_4 <- calcJacobian(item_4, seq(-3, 3, 1), 0)
-item_5   <- new("item_GPC", slope = 1.2, threshold = c(-0.8, -1.0, 0.5), ncat = 4)
 j_item_5 <- calcJacobian(item_5, seq(-3, 3, 1), 0)
-item_6   <- new("item_GR", slope = 0.9, category = c(-1, 0, 1), ncat = 4)
 j_item_6 <- calcJacobian(item_6, seq(-3, 3, 1), 0)
-j_itempool <- calcJacobian(itempool_science, seq(-3, 3, 1), 0)
+j_pool   <- calcJacobian(itempool_science, seq(-3, 3, 1), 0)
+
 }
 \references{
-{
-  \insertRef{rasch_probabilistic_1960}{TestDesign}
-}
+Rasch, G. (1960). \emph{Probabilistic models for some intelligence and attainment tests.}
+Copenhagen: Danish Institute for Educational Research.
 
-{
-  \insertRef{lord_theory_1952}{TestDesign}
+Lord, F. M. (1952). A theory of test scores (Psychometric Monograph No. 7). Richmond, VA: Psychometric Corporation.
 
-  \insertRef{birnbaum_efficient_1957}{TestDesign}
+Birnbaum, A. (1957). \emph{Efficient design and use of tests of mental ability for various decision-making problems}
+(Series Report No. 58-16. Project No. 7755-23).
+Randolph Air Force Base, TX: USAF School of Aviation Medicine.
 
-  \insertRef{birnbaum_estimation_1958}{TestDesign}
+Birnbaum, A. (1958). \emph{On the estimation of mental ability}
+(Series Report No. 15. Project No. 7755-23).
+Randolph Air Force Base, TX: USAF School of Aviation Medicine.
 
-  \insertRef{birnbaum_further_1958}{TestDesign}
-}
+Birnbaum, A. (1958). \emph{Further considerations of efficiency in tests of a mental ability}
+(Series Report No. 17. Project No. 7755-23).
+Randolph Air Force Base, TX: USAF School of Aviation Medicine.
 
-{
-  \insertRef{birnbaum_latent_1968}{TestDesign}
-}
+Birnbaum, A. (1968). Some latent trait models and their use in inferring an examinee's ability.
+In Lord, F. M., Novick, M. R. (eds.), \emph{Statistical Theories of Mental Test Scores}, 397–479.
+Reading, MA: Addison-Wesley.
 
-{
-  \insertRef{masters_rasch_1982}{TestDesign}
+Masters, G. N. (1982). A Rasch model for partial credit scoring.
+\emph{Psychometrika, 47}(2), 149–174.
 
-  \insertRef{andrich_rating_1978}{TestDesign}
-}
+Andrich, D. (1978). A rating formulation for ordered response categories.
+\emph{Psychometrika, 43}(4), 561–573.
 
-{
-  \insertRef{muraki_generalized_1992}{TestDesign}
-}
+Muraki, E. (1992). A generalized partial credit model: Application of an EM algorithm.
+\emph{Applied Psychological Measurement, 16}(2), 159–176.
 
-{
-  \insertRef{samejima_estimation_1969}{TestDesign}
-}
+Samejima, F. (1969). Estimation of latent ability using a response pattern of graded scores.
+\emph{Psychometrika Monograph, 17}.
 }

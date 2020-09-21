@@ -1,13 +1,51 @@
+# TestDesign 1.1.2
+
+## QoL updates
+
+* Web documentation is now available at [https://choi-phd.github.io/TestDesign/](https://choi-phd.github.io/TestDesign/)
+* `loadItemPool()`, `loadItemAttrib()`, `loadStAttrib()`, `loadConstraints()`, `buildConstraints()` are now capable of reading from data frame objects.
+* `loadItemPool()` is now capable of reading from `SingleGroupClass` objects from `mirt` package.
+* `item_pool` objects can be now subsetted and combined with `[` and `c()`.
+* `constraints` objects can be now subsetted and combined with `[` and `c()`.
+* `SUM` constraints now accept `VARIABLE, EXPRESSION` in `CONDITION` for imposing constraints on conditional sums (e.g. `WORDCOUNT, DOK == 1`).
+* `Static()` and `Shadow()` now asks for confirmation when attempting to use solvers other than `Rsymphony`, `lpsymphony` and `gurobi` for set-based assembly. This can be overridden by passing `force_solver = TRUE`.
+* `Shadow()` now uses `progress` package if available.
+* `Static()` now returns an `output_Static` object.
+* `Shadow()` now returns an `output_Shadow_all` object.
+* Added `print()` extensions for most objects.
+* Added `summary()` extensions for most objects.
+* Added `plot()` extensions for most objects.
+* Added `dataset_bayes` example dataset.
+* Now checks whether each solver returns solution properly upon loading the package.
+* `plot(type = 'shadow')` (formerly `plotShadow()`) now groups items by stimulus.
+
+## New features
+* `config_*` objects now have a new `MIP$retry` slot. This specifies the number of retry attempts when the solver encounters a 'no solution' error. This error is incorrect in some cases. The intent of retrying is to verify whether the 'no solution' error indeed indicates a true error.
+* `Shadow()` now has a new `excluded_items` argument.
+
+## Deprecated functions
+
+* `updateConstraints()` is now `toggleConstraints()`.
+* `plotInfo()` is now `plot(type = 'info')`.
+* `plotCAT()` is now `plot(type = 'audit')`.
+* `plotShadow()` is now `plot(type = 'shadow')`.
+* `plotExposure()` is now `plot(type = 'exposure')`.
+* `calcDerivative()` is removed.
+* `calcDerivative2()` is removed.
+
+## Bug fixes
+* Fixed a rare bug where `Shadow()` was marking eligible items as ineligible when using `ELIGIBILITY` exposure control.
+* Fixed where `loadItemPool()` was parsing standard errors incorrectly for `GR` models.
+* Fixed where `loadConstraints()` was creating unnecessarily large numbers of constraints when `TYPE = 'NUMBER'` and `CONDITION` was an item/stimulus attribute name, and the attribute did not have NA values.
+* Fixed where `loadConstraints()` was creating constraints incorrectly when `TYPE = 'NUMBER'` and `CONDITION` was an item/stimulus attribute name, and the attribute had NA values.
+* Fixed where `loadConstraints()` was creating constraints incorrectly when `TYPE = 'NUMBER'` and `CONDITION` was a stimulus attribute name, and `LB` and `UB` were not equal.
+* Fixed where `loadConstraints()` was creating constraints incorrectly when `TYPE = 'SUM'`.
+
 # TestDesign 1.0.2
 
 ## Default solver
 
 * Reverted the default solver to `lpSolve` to address `lpsymphony` being unavailable on Solaris.
-
-## Bug fixes
-
-* Fixed where using diagnostic stats was preventing `Shadow()` to run.
-* Fixed an error affecting `BIGM` exposure control method on set-based items.
 
 # TestDesign 1.0.1
 
@@ -29,17 +67,17 @@
 
 # TestDesign 1.0.0
 
-TestDesign 1.0.0 is a major release that provides structural changes to better streamline the usage of the functions, and also achieve more structured abstraction.
+TestDesign 1.0.0 is a major release that provides structural changes to better streamline the usage of the functions and also achieve more structured abstraction.
 
 ## User-visible structural changes
 
-* The function for fixed-length assembly `ATA()` is now named `Static()` to match with `Shadow()` for adaptive assembly.
+* The function for fixed-test assembly `ATA()` is now named `Static()` to match with `Shadow()` for adaptive assembly.
 * `Shadow()` now uses fewer arguments to match with `Static()` and to reduce redundant information in the arguments.
-* `plotMaxInfo()` is removed. The functionality is merged to `plotInfo()`, which can be used by supplying a `constriants` class object to the function.
-* `Static()` now does not return the plot by itself. The plotting should be done with `plotInfo()`.
-* `plotInfo()` is now a S4 method.
+* `plotMaxInfo()` is removed. The functionality is subsumed under `plotInfo()`, which can be used by supplying a `constriants` class object to the function.
+* `Static()` now does not return the information plot by itself. The plotting should be done with `plotInfo()`.
+* `plotInfo()` is now an S4 method.
 * * Supplying `item_pool` object gives pool-level information plot.
-* * Supplying the result from `Static` gives information plot from the selected items.
+* * Supplying the result from `Static` gives information plot based on the selected items.
 * * Supplying `constraints` object gives information range plot from the test length specified in the constraints.
 * * The comparison in the information range plot is now based on *k* randomly drawn items instead of the *k* worst items.
 

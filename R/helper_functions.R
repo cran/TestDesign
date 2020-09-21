@@ -13,7 +13,6 @@ NULL
 #' @docType methods
 #' @rdname getSolution-methods
 #' @export
-
 setGeneric(
   name = "getSolution",
   def = function(object, examinee = NA, position = NA, index_only = TRUE) {
@@ -23,21 +22,12 @@ setGeneric(
 
 #' @docType methods
 #' @rdname getSolution-methods
-
 setMethod(
   f = "getSolution",
   signature = "list",
   definition = function(object, examinee = NA, position = NA, index_only = TRUE) {
 
-    if (class(object$config) == 'config_Static') {
-      cat("Static Assembly : Selected items\n\n")
-      tmp <- object$selected
-      if (index_only) {
-        tmp <- tmp[['INDEX']]
-      }
-      return(tmp)
-    }
-    if (class(object$config) == 'config_Shadow') {
+    if (inherits(object$config, "config_Shadow")) {
       if (!is.na(examinee)) {
         if (is.na(position)) {
           cat(sprintf("Shadow Assembly : Administered items for examinee %i \n\n", examinee))
@@ -66,16 +56,73 @@ setMethod(
   }
 )
 
-#' Show constraints
+#' @docType methods
+#' @rdname getSolution-methods
+setMethod(
+  f = "getSolution",
+  signature = "output_Static",
+  definition = function(object, examinee = NA, position = NA, index_only = TRUE) {
+    .Deprecated("print", msg = "'getSolution' function is deprecated. Use 'print' function instead.")
+    print(object, index_only = index_only)
+  }
+)
+
+#' (deprecated) Show constraints
 #'
-#' Show constraints. This function is a shortcut to access \code{''} slot.
+#' (deprecated) Use \code{\link[TestDesign:print-methods]{print}} instead.
 #'
-#' @param constraints Output from \code{\link{loadConstraints}}.
+#' @param constraints a \code{\linkS4class{constraints}} object.
 #'
 #' @docType methods
 #' @export
-
 showConstraints <- function(constraints) {
-  return(constraints@constraints)
+  .Deprecated("print", msg = "'showConstraints' function is deprecated. Use 'print' function instead.")
+  print(constraints)
 }
 
+#' @noRd
+countConstraints <- function(constraints, item_idx) {
+
+  if (!inherits(constraints, "constraints")) {
+    stop("'constraints' must be a 'constraints' class object")
+  }
+
+  set_based   <- constraints@set_based
+  item_attrib <- constraints@item_attrib
+  constraints <- constraints@constraints
+
+  nc <- nrow(constraints)
+  list_constraints <- vector(mode = "list", length = nc)
+  item_constraints <- which(constraints[["WHAT"]] == "ITEM")
+  stim_constraints <- which(constraints[["WHAT"]] %in% c("STIMULUS", "PASSAGE", "SET", "TESTLET"))
+
+  count <- vector('list', nc)
+
+  for (index in item_constraints) {
+    if (constraints[["TYPE"]][index] %in% c("NUMBER", "COUNT")) {
+      if (toupper(constraints[["CONDITION"]][index]) %in% c("", " ", "PER TEST", "TEST")) {
+        count[[index]] <- length(item_idx)
+      } else if (toupper(constraints[["CONDITION"]][index]) %in% c("PER STIMULUS", "PER PASSAGE", "PER SET", "PER TESTLET")) {
+        tmp            <- item_attrib@data[item_idx, ]
+        count[[index]] <- aggregate(tmp[["ID"]], by = list(tmp[["STID"]]), function(x) length(x))[, -1]
+      } else if (constraints[["CONDITION"]][index] %in% names(item_attrib@data)) {
+      } else {
+        match_vec      <- with(item_attrib@data, eval(parse(text = constraints[["CONDITION"]][index])))
+        count[[index]] <- sum(item_idx %in% which(match_vec))
+      }
+
+    }
+  }
+
+  if (set_based) {
+    for (index in stim_constraints) {
+      if (constraints[["TYPE"]][index] %in% c("NUMBER", "COUNT")) {
+        tmp <- item_attrib@data[item_idx, ]
+        count[[index]] <- length(na.omit(unique(tmp[["STID"]])))
+      }
+    }
+  }
+
+  return(count)
+
+}

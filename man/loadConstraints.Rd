@@ -4,45 +4,48 @@
 \alias{loadConstraints}
 \title{Load constraints}
 \usage{
-loadConstraints(file, pool, item_attrib, st_attrib = NULL)
+loadConstraints(object, pool, item_attrib, st_attrib = NULL, file = NULL)
 }
 \arguments{
-\item{file}{Character. The name of the file containing specifications for constraints.}
+\item{object}{constraint specifications. Can be a data.frame or the file path of a .csv file. See the vignette for the expected format.}
 
-\item{pool}{An \code{item_pool} object.}
+\item{pool}{an \code{\linkS4class{item_pool}} object. Use \code{\link{loadItemPool}} for this.}
 
-\item{item_attrib}{An \code{item_attrib} object containing item attributes. Use \code{\link{loadItemAttrib}} for this.}
+\item{item_attrib}{an \code{\linkS4class{item_attrib}} object. Use \code{\link{loadItemAttrib}} for this.}
 
-\item{st_attrib}{(Optional) An \code{st_attrib} object containing stimulus attributes. Use \code{\link{loadStAttrib}} for this.}
+\item{st_attrib}{(optional) an \code{\linkS4class{st_attrib}} object. Use \code{\link{loadStAttrib}} for this.}
+
+\item{file}{(deprecated) use \code{object} argument instead.}
 }
 \value{
-A \code{constraints} object containing the parsed constraints, to be used in \code{\link{Static}} and \code{\link{Shadow}}.
+\code{\link{loadConstraints}} returns a \code{\linkS4class{constraints}} object. This object is used in \code{\link{Static}} and \code{\link{Shadow}}.
 }
 \description{
-Read constraints from specified file.
-}
-\details{
-Use \code{vignette("constraints")} for instructions on how to create the constraint file.
+\code{\link{loadConstraints}} is a data loading function to create a \code{\linkS4class{constraints}} object.
+\code{\link{loadConstraints}} can read constraints from a data.frame or a .csv file.
+The contents must be in the expected format; see the vignette in \code{vignette("constraints")}.
 }
 \examples{
-## Write to tempdir() and clean afterwards
-f <- file.path(tempdir(), "itempool_science.csv")
-write.csv(itempool_science_raw, f, row.names = FALSE)
-itempool_science <- loadItemPool(f)
-file.remove(f)
+## Read from data.frame:
+itempool_science    <- loadItemPool(itempool_science_data)
+itemattrib_science  <- loadItemAttrib(itemattrib_science_data, itempool_science)
+constraints_science <- loadConstraints(constraints_science_data,
+  itempool_science, itemattrib_science)
 
-f <- file.path(tempdir(), "itemattrib_science.csv")
-write.csv(itemattrib_science_raw, f, row.names = FALSE)
-itemattrib_science <- loadItemAttrib(f, itempool_science)
-file.remove(f)
-
+## Read from file: write to tempdir() for illustration and clean afterwards
 f <- file.path(tempdir(), "constraints_science.csv")
-write.csv(constraints_science_raw, f, row.names = FALSE)
+write.csv(constraints_science_data, f, row.names = FALSE)
 constraints_science <- loadConstraints(f,
   itempool_science, itemattrib_science)
 file.remove(f)
 
+## TestDesign 1.1.0 - Deprecated arguments
+\dontrun{
+loadConstraints(object = "consts.csv", pool, item_attrib) # is equivalent to
+loadConstraints(file   = "consts.csv", pool, item_attrib) # pre 1.1.0
+}
+
 }
 \seealso{
-\link{dataset_science} for example usage.
+\code{\link{dataset_science}}, \code{\link{dataset_reading}}, \code{\link{dataset_fatigue}}, \code{\link{dataset_bayes}} for examples.
 }
