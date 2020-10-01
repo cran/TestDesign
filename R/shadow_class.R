@@ -159,7 +159,9 @@ setClass("config_Shadow",
       max_iter                  = 50,
       crit                      = 0.001,
       max_change                = 1.0,
-      do_Fisher                 = TRUE
+      do_Fisher                 = TRUE,
+      fence_slope               = 5,
+      fence_difficulty          = c(-5, 5)
     ),
     final_theta = list(
       method                    = "EAP",
@@ -171,7 +173,9 @@ setClass("config_Shadow",
       max_iter                  = 50,
       crit                      = 0.001,
       max_change                = 1.0,
-      do_Fisher                 = TRUE
+      do_Fisher                 = TRUE,
+      fence_slope               = 5,
+      fence_difficulty          = c(-5, 5)
     ),
     theta_grid                  = seq(-4, 4, .1),
     audit_trail                 = FALSE
@@ -232,16 +236,16 @@ setClass("config_Shadow",
       msg <- sprintf("config@stopping_criterion: unrecognized $method '%s'", object@stopping_criterion$method)
       err <- c(err, msg)
     }
-    if (!object@interim_theta$method %in% c("EAP", "MLE", "EB", "FB")) {
-      msg <- sprintf("config@interim_theta: unrecognized $method '%s' (accepts EAP, MLE, EB, or FB)", object@interim_theta$method)
+    if (!object@interim_theta$method %in% c("EAP", "MLE", "MLEF", "EB", "FB")) {
+      msg <- sprintf("config@interim_theta: unrecognized $method '%s' (accepts EAP, MLE, MLEF, EB, or FB)", object@interim_theta$method)
       err <- c(err, msg)
     }
     if (!object@interim_theta$prior_dist %in% c("NORMAL", "UNIFORM")) {
       msg <- sprintf("config@interim_theta: unrecognized $prior_dist '%s' (accepts NORMAL or UNIFORM)", object@interim_theta$prior_dist)
       err <- c(err, msg)
     }
-    if (!object@final_theta$method %in% c("EAP", "MLE", "EB", "FB")) {
-      msg <- sprintf("config@final_theta: unrecognized $method '%s' (accepts EAP, MLE, EB, or FB)", object@final_theta$method)
+    if (!object@final_theta$method %in% c("EAP", "MLE", "MLEF", "EB", "FB")) {
+      msg <- sprintf("config@final_theta: unrecognized $method '%s' (accepts EAP, MLE, MLEF, EB, or FB)", object@final_theta$method)
       err <- c(err, msg)
     }
     if (toupper(object@final_theta$method) == "EAP") {
@@ -324,7 +328,7 @@ setClass("config_Shadow",
 #' }
 #' @param interim_theta a named list containing interim theta estimation options.
 #' \itemize{
-#'   \item{\code{method}} the type of estimation. Accepts \code{EAP, EB, FB}. (default = \code{EAP})
+#'   \item{\code{method}} the type of estimation. Accepts \code{EAP, MLE, MLEF, EB, FB}. (default = \code{EAP})
 #'   \item{\code{shrinkage_correction}} set \code{TRUE} to apply shrinkage correction. Used when \code{method} is \code{EAP}. (default = \code{FALSE})
 #'   \item{\code{prior_dist}} the type of prior distribution. Accepts \code{NORMAL, UNIFORM}. (default = \code{NORMAL})
 #'   \item{\code{prior_par}} distribution parameters for \code{prior_dist}. (default = \code{c(0, 1)})
@@ -334,10 +338,12 @@ setClass("config_Shadow",
 #'   \item{\code{crit}} convergence criterion. Used when \code{method} is \code{MLE}. (default = \code{1e-03})
 #'   \item{\code{max_change}} maximum change in ML estimates between iterations. Changes exceeding this value is clipped to this value. Used when \code{method} is \code{MLE}. (default = \code{1.0})
 #'   \item{\code{do_Fisher}} set \code{TRUE} to use Fisher's method of scoring. Used when \code{method} is \code{MLE}. (default = \code{TRUE})
+#'   \item{\code{fence_slope}} slope parameter to use for \code{method = 'MLEF'}. This must have two values in total, for the lower and upper bound item respectively. Use one value to use the same value for both bounds. (default = \code{5})
+#'   \item{\code{fence_difficulty}} difficulty parameters to use for \code{method = 'MLEF'}. This must have two values in total, for the lower and upper bound item respectively. (default = \code{c(-5, 5)})
 #' }
-#' @param final_theta A list containing final theta estimation options.
+#' @param final_theta a named list containing final theta estimation options.
 #' \itemize{
-#'   \item{\code{method}} the type of estimation. Accepts \code{EAP, EB, FB}. (default = \code{EAP})
+#'   \item{\code{method}} the type of estimation. Accepts \code{EAP, MLE, MLEF, EB, FB}. (default = \code{EAP})
 #'   \item{\code{shrinkage_correction}} set \code{TRUE} to apply shrinkage correction. Used when \code{method} is \code{EAP}. (default = \code{FALSE})
 #'   \item{\code{prior_dist}} the type of prior distribution. Accepts \code{NORMAL, UNIFORM}. (default = \code{NORMAL})
 #'   \item{\code{prior_par}} distribution parameters for \code{prior_dist}. (default = \code{c(0, 1)})
@@ -347,6 +353,8 @@ setClass("config_Shadow",
 #'   \item{\code{crit}} convergence criterion. Used when \code{method} is \code{MLE}. (default = \code{1e-03})
 #'   \item{\code{max_change}} maximum change in ML estimates between iterations. Changes exceeding this value is clipped to this value. Used when \code{method} is \code{MLE}. (default = \code{1.0})
 #'   \item{\code{do_Fisher}} set \code{TRUE} to use Fisher's method of scoring. Used when \code{method} is \code{MLE}. (default = \code{TRUE})
+#'   \item{\code{fence_slope}} slope parameter to use for \code{method = 'MLEF'}. This must have two values in total, for the lower and upper bound item respectively. Use one value to use the same value for both bounds. (default = \code{5})
+#'   \item{\code{fence_difficulty}} difficulty parameters to use for \code{method = 'MLEF'}. This must have two values in total, for the lower and upper bound item respectively. (default = \code{c(-5, 5)})
 #' }
 #' @param theta_grid the theta grid to use as quadrature points.
 #' @param audit_trail set \code{TRUE} to plot audit trails.
@@ -408,17 +416,25 @@ createShadowTestConfig <- function(
 #'
 #' \code{\linkS4class{output_Shadow_all}} is an S4 class to represent a set of adaptive assembly solutions.
 #'
-#' @slot output list of \code{\linkS4class{output_Shadow}} objects, containing the assembly results for each participant.
-#' @slot final_theta_est final theta estimates for each participant.
-#' @slot final_se_est standard errors of final theta estimates for each participant.
-#' @slot exposure_rate Exposure rate of each item in the pool.
-#' @slot usage_matrix The matrix representing which items were used in each item position.
-#' @slot true_segment_count foo
-#' @slot est_segment_count foo
-#' @slot eligibility_stats foo
-#' @slot check_eligibility_stats foo
-#' @slot no_fading_eligibility_stats foo
-#' @slot freq_infeasible foo
+#' \describe{
+#'   \item{\emph{notations}}{\itemize{
+#'     \item{\emph{ni} denotes the number of items in the \code{\linkS4class{item_pool}} object.}
+#'     \item{\emph{ns} denotes the number of stimuli.}
+#'     \item{\emph{nj} denotes the number of participants.}
+#'   }}
+#' }
+#'
+#' @slot output a length-*nj* list of \code{\linkS4class{output_Shadow}} objects, containing the assembly results for each participant.
+#' @slot final_theta_est a length-*nj* vector containing final theta estimates for each participant.
+#' @slot final_se_est a length-*nj* vector standard errors of the final theta estimates for each participant.
+#' @slot exposure_rate a matrix containing item-level exposure rates of all items in the pool. Also contains stimulus-level exposure rates if the assembly was set-based.
+#' @slot usage_matrix a *nj* by (*ni* + *ns*) matrix representing whether the item/stimulus was administered to each participant. Stimuli representations are appended to the right side of the matrix.
+#' @slot true_segment_count a length-*nj* vector containing the how many examinees are now in their segment based on the true theta. This will tend to increase. This can be reproduced with true theta values alone.
+#' @slot est_segment_count a length-*nj* vector containing the how many examinees are now in their segment based on the estimated theta. This will tend to increase. This can be reproduced with estimated theta values alone.
+#' @slot eligibility_stats exposure record for diagnostics.
+#' @slot check_eligibility_stats detailed segment-wise exposure record for diagnostics. available when \code{config_Shadow@exposure_control$diagnostic_stats} is \code{TRUE}.
+#' @slot no_fading_eligibility_stats detailed segment-wise exposure record without fading for diagnostics. available when \code{config_Shadow@exposure_control$diagnostic_stats} is \code{TRUE}.
+#' @slot freq_infeasible a table representing the number of times the assembly was initially infeasible.
 #' @slot pool the \code{\linkS4class{item_pool}} used in the assembly.
 #' @slot config the \code{\linkS4class{config_Shadow}} used in the assembly.
 #' @slot constraints the \code{\linkS4class{constraints}} used in the assembly.

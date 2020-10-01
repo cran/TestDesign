@@ -18,7 +18,7 @@
 \alias{calcProb,item_GPC,matrix-method}
 \alias{calcProb,item_GR,matrix-method}
 \alias{calcProb,item_pool,matrix-method}
-\alias{calcProb,pool_cluster,numeric-method}
+\alias{calcProb,item_pool_cluster,numeric-method}
 \title{Calculate item response probabilities}
 \usage{
 calcProb(object, theta)
@@ -51,7 +51,7 @@ calcProb(object, theta)
 
 \S4method{calcProb}{item_pool,matrix}(object, theta)
 
-\S4method{calcProb}{pool_cluster,numeric}(object, theta)
+\S4method{calcProb}{item_pool_cluster,numeric}(object, theta)
 }
 \arguments{
 \item{object}{an \code{\link{item}} or an \code{\linkS4class{item_pool}} object.}
@@ -67,7 +67,7 @@ calcProb(object, theta)
   \item{\emph{notations}}{\itemize{
     \item{\emph{nq} denotes the number of theta values.}
     \item{\emph{ncat} denotes the number of response categories.}
-    \item{\emph{ni} denotes the number of items in an \code{\linkS4class{item_pool}} object.}
+    \item{\emph{ni} denotes the number of items in the \code{\linkS4class{item_pool}} object.}
   }}
 }
 }

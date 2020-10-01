@@ -2,10 +2,10 @@
 NULL
 
 #' @rdname simResp-methods
-#' @aliases simResp,pool_cluster,numeric-method
+#' @aliases simResp,item_pool_cluster,numeric-method
 setMethod(
   f = "simResp",
-  signature = c("pool_cluster", "list"),
+  signature = c("item_pool_cluster", "list"),
   definition = function(object, theta) {
     if (length(theta) != length(object@np)) {
       data <- vector(mode = "list", length = object@np)
@@ -27,7 +27,7 @@ setMethod(
 #'
 #' Generate a \code{\linkS4class{test_cluster}} object
 #'
-#' @param object An \code{\linkS4class{pool_cluster}} object
+#' @param object An \code{\linkS4class{item_pool_cluster}} object
 #' @param theta A grid of theta values
 #' @param true_theta An optional vector of true theta values to simulate response data
 #'
@@ -44,7 +44,7 @@ setGeneric(
 #' @rdname makeTestCluster-methods
 setMethod(
   f = "makeTestCluster",
-  signature = c("pool_cluster", "numeric", "numeric"),
+  signature = c("item_pool_cluster", "numeric", "numeric"),
   definition = function(object, theta, true_theta) {
     tests <- vector(mode = "list", length = object@np)
     for (p in 1:object@np) {
@@ -58,7 +58,7 @@ setMethod(
 #' @rdname makeTestCluster-methods
 setMethod(
   f = "makeTestCluster",
-  signature = c("pool_cluster", "numeric", "list"),
+  signature = c("item_pool_cluster", "numeric", "list"),
   definition = function(object, theta, true_theta) {
     tests <- vector(mode = "list", length = object@np)
     for (p in 1:object@np) {
@@ -413,6 +413,26 @@ setMethod(
           o@interim_theta_est[position] <- interim_MLE$th
           o@interim_se_est[position]    <- interim_MLE$se
 
+        } else if (toupper(config@interim_theta$method) == "MLEF") {
+
+          interim_EAP <- estimateThetaEAP(posterior_record$posterior[j, ], constants$theta_q)
+          interim_MLEF <- mlef(pool,
+            select           = o@administered_item_index[1:position],
+            resp             = o@administered_item_resp[1:position],
+            fence_slope      = config@interim_theta$fence_slope,
+            fence_difficulty = config@interim_theta$fence_difficulty,
+            start_theta      = interim_EAP$theta,
+            max_iter         = config@interim_theta$max_iter,
+            crit             = config@interim_theta$crit,
+            theta_range      = config@interim_theta$bound_ML,
+            truncate         = config@interim_theta$truncate_ML,
+            max_change       = config@interim_theta$max_change,
+            do_Fisher        = config@interim_theta$do_Fisher
+          )
+
+          o@interim_theta_est[position] <- interim_MLEF$th
+          o@interim_se_est[position]    <- interim_MLEF$se
+
         } else if (toupper(config@interim_theta$method) == "EB") {
 
           current_item <- o@administered_item_index[position]
@@ -517,6 +537,26 @@ setMethod(
 
         o@final_theta_est <- final_MLE$th
         o@final_se_est    <- final_MLE$se
+
+      } else if (toupper(config@final_theta$method) == "MLEF") {
+
+        final_MLEF <- mlef(
+          pool,
+          select           = o@administered_item_index[1:constants$max_ni],
+          resp             = o@administered_item_resp[1:constants$max_ni],
+          fence_slope      = config@final_theta$fence_slope,
+          fence_difficulty = config@final_theta$fence_difficulty,
+          start_theta      = o@interim_theta_est[constants$max_ni],
+          max_iter         = config@final_theta$max_iter,
+          crit             = config@final_theta$crit,
+          theta_range      = config@final_theta$bound_ML,
+          truncate         = config@final_theta$truncate_ML,
+          max_change       = config@final_theta$max_change,
+          do_Fisher        = config@final_theta$do_Fisher
+        )
+
+        o@final_theta_est <- final_MLEF$th
+        o@final_se_est    <- final_MLEF$se
 
       } else if (toupper(config@final_theta$method) == "EB") {
 
@@ -680,41 +720,46 @@ setMethod(
 
       if (config@exposure_control$diagnostic_stats) {
 
-        check_eligibility_stats <- as.data.frame(cbind(
-          1:constants$nj, true_theta, find_segment(true_theta, exposure_constants$segment_cut), segment_record$count_true,
-          exposure_record_detailed$a_g_i,
-          exposure_record_detailed$e_g_i), row.names = NULL)
-        names(check_eligibility_stats) <- c("Examinee", "TrueTheta", "TrueSegment", "TrueSegmentCount",
-          paste("a", "g", rep(1:exposure_constants$n_segment, rep(constants$ni, exposure_constants$n_segment)), "i", rep(1:constants$ni, exposure_constants$n_segment), sep = "_"),
-          paste("e", "g", rep(1:exposure_constants$n_segment, rep(constants$ni, exposure_constants$n_segment)), "i", rep(1:constants$ni, exposure_constants$n_segment), sep = "_"))
+        check_eligibility_stats <- list()
 
-        if (constants$set_based) {
-          check_eligibility_stats_stimulus <- as.data.frame(cbind(
-            exposure_record_detailed$a_g_s,
-            exposure_record_detailed$e_g_s), row.names = NULL)
-          names(check_eligibility_stats_stimulus) <- c(
-            paste("a", "g", rep(1:exposure_constants$n_segment, rep(constants$ns, exposure_constants$n_segment)), "s", rep(1:constants$ns, exposure_constants$n_segment), sep = "_"),
-            paste("e", "g", rep(1:exposure_constants$n_segment, rep(constants$ns, exposure_constants$n_segment)), "s", rep(1:constants$ns, exposure_constants$n_segment), sep = "_"))
-          check_eligibility_stats <- cbind(check_eligibility_stats, check_eligibility_stats_stimulus)
+        for (j in 1:constants$nj) {
+          tmp <- list()
+          tmp$true_theta         <- true_theta[j]
+          tmp$true_segment       <- find_segment(true_theta[j], exposure_constants$segment_cut)
+          tmp$true_segment_count <- segment_record$count_true[j]
+          check_eligibility_stats[[j]] <- tmp
+
+          check_eligibility_stats[[j]]$a_g_i <- exposure_record_detailed$a_g_i
+          check_eligibility_stats[[j]]$e_g_i <- exposure_record_detailed$e_g_i
+
+          if (constants$set_based) {
+            check_eligibility_stats[[j]]$a_g_s <- exposure_record_detailed$a_g_s
+            check_eligibility_stats[[j]]$e_g_s <- exposure_record_detailed$e_g_s
+          }
+
         }
 
         if (exposure_constants$fading_factor != 1) {
-          no_fading_eligibility_stats <- as.data.frame(cbind(
-            1:constants$nj, true_theta, find_segment(true_theta, exposure_constants$segment_cut), segment_record$count_true,
-            exposure_record_detailed$a_g_i_nofade,
-            exposure_record_detailed$e_g_i_nofade), row.names = NULL)
-          names(no_fading_eligibility_stats) <- c("Examinee", "TrueTheta", "TrueSegment", "TrueSegmentCount",
-            paste("a", "g", rep(1:exposure_constants$n_segment, rep(constants$ni, exposure_constants$n_segment)), "i", rep(1:constants$ni, exposure_constants$n_segment), sep = "_"),
-            paste("e", "g", rep(1:exposure_constants$n_segment, rep(constants$ni, exposure_constants$n_segment)), "i", rep(1:constants$ni, exposure_constants$n_segment), sep = "_"))
-          if (constants$set_based) {
-            no_fading_eligibility_stats_stimulus <- as.data.frame(cbind(
-              exposure_record_detailed$a_g_s_nofade,
-              exposure_record_detailed$e_g_s_nofade), row.names = NULL)
-            names(no_fading_eligibility_stats_stimulus) <- c(
-              paste("a", "g", rep(1:exposure_constants$n_segment, rep(constants$ns, exposure_constants$n_segment)), "s", rep(1:constants$ns, exposure_constants$n_segment), sep = "_"),
-              paste("e", "g", rep(1:exposure_constants$n_segment, rep(constants$ns, exposure_constants$n_segment)), "s", rep(1:constants$ns, exposure_constants$n_segment), sep = "_"))
-            no_fading_eligibility_stats <- cbind(no_fading_eligibility_stats, no_fading_eligibility_stats_stimulus)
+
+          no_fading_eligibility_stats <- list()
+
+          for (j in 1:constants$nj) {
+            tmp <- list()
+            tmp$true_theta         <- true_theta[j]
+            tmp$true_segment       <- find_segment(true_theta[j], exposure_constants$segment_cut)
+            tmp$true_segment_count <- segment_record$count_true[j]
+            no_fading_eligibility_stats[[j]] <- tmp
+
+            no_fading_eligibility_stats[[j]]$a_g_i_nofade <- exposure_record_detailed$a_g_i_nofade
+            no_fading_eligibility_stats[[j]]$e_g_i_nofade <- exposure_record_detailed$e_g_i_nofade
+
+            if (constants$set_based) {
+              no_fading_eligibility_stats[[j]]$a_g_s_nofade <- exposure_record_detailed$a_g_s_nofade
+              no_fading_eligibility_stats[[j]]$e_g_s_nofade <- exposure_record_detailed$e_g_s_nofade
+            }
+
           }
+
         }
 
       }
@@ -1231,9 +1276,9 @@ setMethod(
 #'
 #' (deprecated) Use \code{\link[TestDesign:plot-methods]{plot}} with \code{type = 'exposure'} instead.
 #'
-#' @param object An output object generated by \code{\link{Shadow}}.
-#' @param max_rate A target exposure rate.
-#' @param theta_segment True or Estimated theta used to create segments ("Estimated" or "True").
+#' @param object an output object generated by \code{\link{Shadow}}.
+#' @param max_rate the target exposure rate.
+#' @param theta_segment the type of theta to use to create segments. Accepts \code{"estimated"} or \code{"true"}. (default = \code{"estimated"})
 #' @param color Color of item-wise exposure rates.
 #' @param color_final Color of item-wise exposure rates, only counting the items while in the final theta segment as exposed.
 #' @param file_pdf If supplied a filename, save as a PDF file.

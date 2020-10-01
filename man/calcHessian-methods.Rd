@@ -17,8 +17,8 @@
 \alias{calcHessian,item_GR,numeric-method}
 \alias{calcHessian,item_pool,numeric,numeric-method}
 \alias{calcHessian,item_pool,numeric-method}
-\alias{calcHessian,pool_cluster,numeric,list-method}
-\alias{calcHessian,pool_cluster,numeric-method}
+\alias{calcHessian,item_pool_cluster,numeric,list-method}
+\alias{calcHessian,item_pool_cluster,numeric-method}
 \title{Calculate second derivative of log-likelihood}
 \usage{
 calcHessian(object, theta, resp)
@@ -37,20 +37,31 @@ calcHessian(object, theta, resp)
 
 \S4method{calcHessian}{item_pool,numeric,numeric}(object, theta, resp)
 
-\S4method{calcHessian}{pool_cluster,numeric,list}(object, theta, resp)
+\S4method{calcHessian}{item_pool_cluster,numeric,list}(object, theta, resp)
 }
 \arguments{
 \item{object}{an \code{\link{item}} or an \code{\linkS4class{item_pool}} object.}
 
 \item{theta}{theta values to use.}
 
-\item{resp}{the response data to use.}
+\item{resp}{the response data to use. This must be a single value for an \code{\link{item}}, or a length \emph{ni} vector for an \code{\linkS4class{item_pool}}.}
 }
 \value{
-\code{\link{calcHessian}} returns second derivative values of log-likelihoods.
+\describe{
+  \item{\code{\link{item}} object:}{\code{\link{calcHessian}} returns a length \emph{nq} vector containing the second derivative of the log-likelihood function, of observing the response at each theta.}
+  \item{\code{\linkS4class{item_pool}} object:}{\code{\link{calcHessian}} returns a (\emph{nq}, \emph{ni}) matrix containing the second derivative of the log-likelihood function, of observing the response at each theta.}
+}
 }
 \description{
 \code{\link{calcHessian}} is a function to calculate the second derivative of the log-likelihood function.
+}
+\details{
+\describe{
+  \item{\emph{notations}}{\itemize{
+    \item{\emph{nq} denotes the number of theta values.}
+    \item{\emph{ni} denotes the number of items in the \code{\linkS4class{item_pool}} object.}
+  }}
+}
 }
 \examples{
 

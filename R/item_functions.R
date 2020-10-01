@@ -17,7 +17,7 @@ NULL
 #'   \item{\emph{notations}}{\itemize{
 #'     \item{\emph{nq} denotes the number of theta values.}
 #'     \item{\emph{ncat} denotes the number of response categories.}
-#'     \item{\emph{ni} denotes the number of items in an \code{\linkS4class{item_pool}} object.}
+#'     \item{\emph{ni} denotes the number of items in the \code{\linkS4class{item_pool}} object.}
 #'   }}
 #' }
 #'
@@ -226,7 +226,11 @@ setMethod(
 #' @param object an \code{\link{item}} or an \code{\linkS4class{item_pool}} object.
 #' @param theta theta values to use.
 #'
-#' @return A vector of expected scores of length nq (the number of values on theta grid).
+#' @return
+#' \describe{
+#'   \item{\code{\link{item}} object:}{\code{\link{calcEscore}} a vector containing expected score of the item at the theta values.}
+#'   \item{\code{\linkS4class{item_pool}} object:}{\code{\link{calcEscore}} returns a vector containing the pool-level expected score at the theta values.}
+#' }
 #'
 #' @examples
 #' item_1     <- new("item_1PL", difficulty = 0.5)
@@ -426,7 +430,19 @@ setMethod(
 #' @param object an \code{\link{item}} or an \code{\linkS4class{item_pool}} object.
 #' @param theta theta values to use.
 #'
-#' @return A vector of Fisher information values over theta (nq values) for a single item or a matrix of dimension (nq, ni) for an "item_pool".
+#' @return
+#' \describe{
+#'   \item{\code{\link{item}} object:}{\code{\link{calcFisher}} returns a (\emph{nq}, \emph{1}) matrix of information values.}
+#'   \item{\code{\linkS4class{item_pool}} object:}{\code{\link{calcProb}} returns a (\emph{nq}, \emph{ni}) matrix of information values.}
+#' }
+#' \describe{
+#'   \item{\emph{notations}}{\itemize{
+#'     \item{\emph{nq} denotes the number of theta values.}
+#'     \item{\emph{ni} denotes the number of items in the \code{\linkS4class{item_pool}} object.}
+#'   }}
+#' }
+#'
+#' A vector of Fisher information values over theta (nq values) for a single item or a matrix of dimension (nq, ni) for an "item_pool".
 #'
 #' @examples
 #' item_1      <- new("item_1PL", difficulty = 0.5)
@@ -623,10 +639,10 @@ setMethod(
 )
 
 #' @rdname calcProb-methods
-#' @aliases calcProb,pool_cluster,numeric-method
+#' @aliases calcProb,item_pool_cluster,numeric-method
 setMethod(
   f = "calcProb",
-  signature = c("pool_cluster", "numeric"),
+  signature = c("item_pool_cluster", "numeric"),
   definition = function(object, theta) {
     if (length(theta) > 0 && all(!is.na(theta))) {
       prob <- lapply(object@pools, calcProb, theta)
@@ -638,10 +654,10 @@ setMethod(
 )
 
 #' @rdname calcEscore-methods
-#' @aliases calcEscore,pool_cluster,numeric-method
+#' @aliases calcEscore,item_pool_cluster,numeric-method
 setMethod(
   f = "calcEscore",
-  signature = c("pool_cluster", "numeric"),
+  signature = c("item_pool_cluster", "numeric"),
   definition = function(object, theta) {
     if (length(theta) > 0 && all(!is.na(theta))) {
       expected_score <- lapply(object@pools, calcEscore, theta)
@@ -653,11 +669,11 @@ setMethod(
 )
 
 #' @rdname calcFisher-methods
-#' @aliases calcFisher,pool_cluster,numeric-method
+#' @aliases calcFisher,item_pool_cluster,numeric-method
 #' @export
 setMethod(
   f = "calcFisher",
-  signature = c("pool_cluster", "numeric"),
+  signature = c("item_pool_cluster", "numeric"),
   definition = function(object, theta) {
     if (length(theta) > 0 && all(!is.na(theta))) {
       info_Fisher <- vector(mode = "list", length = object@np)
@@ -684,7 +700,7 @@ setMethod(
 #' }
 #' \describe{
 #'   \item{\emph{notations}}{\itemize{
-#'     \item{\emph{ni} denotes the number of items in an \code{\linkS4class{item_pool}} object.}
+#'     \item{\emph{ni} denotes the number of items in the \code{\linkS4class{item_pool}} object.}
 #'   }}
 #' }
 #'
@@ -893,7 +909,17 @@ setMethod(
 #' @param theta theta values to use.
 #' @param resp the response data to use.
 #'
-#' @return \code{\link{calcJacobian}} returns first derivative values of log-likelihoods.
+#' @return
+#' \describe{
+#'   \item{\code{\link{item}} object:}{\code{\link{calcJacobian}} returns a length \emph{nq} vector containing the first derivative of the log-likelihood function, of observing the response at each theta.}
+#'   \item{\code{\linkS4class{item_pool}} object:}{\code{\link{calcJacobian}} returns a (\emph{nq}, \emph{ni}) matrix containing the first derivative of the log-likelihood function, of observing the response at each theta.}
+#' }
+#' \describe{
+#'   \item{\emph{notations}}{\itemize{
+#'     \item{\emph{nq} denotes the number of theta values.}
+#'     \item{\emph{ni} denotes the number of items in the \code{\linkS4class{item_pool}} object.}
+#'   }}
+#' }
 #'
 #' @examples
 #' item_1    <- new("item_1PL", difficulty = 0.5)
@@ -909,7 +935,10 @@ setMethod(
 #' j_item_4 <- calcJacobian(item_4, seq(-3, 3, 1), 0)
 #' j_item_5 <- calcJacobian(item_5, seq(-3, 3, 1), 0)
 #' j_item_6 <- calcJacobian(item_6, seq(-3, 3, 1), 0)
-#' j_pool   <- calcJacobian(itempool_science, seq(-3, 3, 1), 0)
+#' j_pool   <- calcJacobian(
+#'   itempool_science, seq(-3, 3, 1),
+#'   rep(0, itempool_science@ni)
+#' )
 #'
 #' @template 1pl-ref
 #' @template 2pl-ref
@@ -1021,6 +1050,9 @@ setMethod(
   f = "calcJacobian",
   signature = c("item_pool", "numeric", "numeric"),
   definition = function(object, theta, resp) {
+    if (length(resp) != object@ni) {
+      stop("length(resp) does not match item_pool@ni")
+    }
     if (length(theta) > 0 && all(!is.na(theta))) {
       mat_Jacobian <- matrix(NA, length(theta), object@ni)
       for (i in 1:object@ni) {
@@ -1034,10 +1066,10 @@ setMethod(
 )
 
 #' @rdname calcJacobian-methods
-#' @aliases calcJacobian,pool_cluster,numeric-method
+#' @aliases calcJacobian,item_pool_cluster,numeric-method
 setMethod(
   f = "calcJacobian",
-  signature = c("pool_cluster", "numeric", "list"),
+  signature = c("item_pool_cluster", "numeric", "list"),
   definition = function(object, theta, resp) {
     if (length(theta) > 0 && all(!is.na(theta))) {
       mat_Jacobian <- vector(mode = "list", length = object@np)
@@ -1055,11 +1087,22 @@ setMethod(
 #'
 #' \code{\link{calcHessian}} is a function to calculate the second derivative of the log-likelihood function.
 #'
+#' \describe{
+#'   \item{\emph{notations}}{\itemize{
+#'     \item{\emph{nq} denotes the number of theta values.}
+#'     \item{\emph{ni} denotes the number of items in the \code{\linkS4class{item_pool}} object.}
+#'   }}
+#' }
+#'
 #' @param object an \code{\link{item}} or an \code{\linkS4class{item_pool}} object.
 #' @param theta theta values to use.
-#' @param resp the response data to use.
+#' @param resp the response data to use. This must be a single value for an \code{\link{item}}, or a length \emph{ni} vector for an \code{\linkS4class{item_pool}}.
 #'
-#' @return \code{\link{calcHessian}} returns second derivative values of log-likelihoods.
+#' @return
+#' \describe{
+#'   \item{\code{\link{item}} object:}{\code{\link{calcHessian}} returns a length \emph{nq} vector containing the second derivative of the log-likelihood function, of observing the response at each theta.}
+#'   \item{\code{\linkS4class{item_pool}} object:}{\code{\link{calcHessian}} returns a (\emph{nq}, \emph{ni}) matrix containing the second derivative of the log-likelihood function, of observing the response at each theta.}
+#' }
 #'
 #' @examples
 #'
@@ -1207,10 +1250,10 @@ setMethod(
 )
 
 #' @rdname calcHessian-methods
-#' @aliases calcHessian,pool_cluster,numeric-method
+#' @aliases calcHessian,item_pool_cluster,numeric-method
 setMethod(
   f = "calcHessian",
-  signature = c("pool_cluster", "numeric", "list"),
+  signature = c("item_pool_cluster", "numeric", "list"),
   definition = function(object, theta, resp) {
     if (length(theta) > 0 && all(!is.na(theta))) {
       mat_Hessian <- vector(mode = "list", length = object@np)
@@ -1228,10 +1271,21 @@ setMethod(
 #'
 #' \code{\link{simResp}} is a function to simulate item response data.
 #'
+#' \describe{
+#'   \item{\emph{notations}}{\itemize{
+#'     \item{\emph{nq} denotes the number of theta values.}
+#'     \item{\emph{ni} denotes the number of items in the \code{\linkS4class{item_pool}} object.}
+#'   }}
+#' }
+#'
 #' @param object an \code{\link{item}} or an \code{\linkS4class{item_pool}} object.
 #' @param theta theta values to use.
 #'
-#' @return \code{\link{simResp}} returns simulated item response data.
+#' @return
+#' \describe{
+#'   \item{\code{\link{item}} object:}{\code{\link{simResp}} returns a length \emph{nq} vector containing simulated item response data.}
+#'   \item{\code{\linkS4class{item_pool}} object:}{\code{\link{simResp}} returns a (\emph{nq}, \emph{ni}) matrix containing simulated item response data.}
+#' }
 #'
 #' @examples
 #'
@@ -1382,10 +1436,10 @@ setMethod(
 )
 
 #' @rdname simResp-methods
-#' @aliases simResp,pool_cluster,numeric-method
+#' @aliases simResp,item_pool_cluster,numeric-method
 setMethod(
   f = "simResp",
-  signature = c("pool_cluster", "numeric"),
+  signature = c("item_pool_cluster", "numeric"),
   definition = function(object, theta) {
     if (length(theta) > 0 && all(!is.na(theta))) {
       data <- vector(mode = "list", length = object@np)
@@ -1400,10 +1454,10 @@ setMethod(
 )
 
 #' @rdname simResp-methods
-#' @aliases simResp,pool_cluster,list-method
+#' @aliases simResp,item_pool_cluster,list-method
 setMethod(
   f = "simResp",
-  signature = c("pool_cluster", "list"),
+  signature = c("item_pool_cluster", "list"),
   definition = function(object, theta) {
     if (length(theta) != length(object@np)) {
       data <- vector(mode = "list", length = object@np)

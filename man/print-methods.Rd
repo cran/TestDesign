@@ -18,6 +18,7 @@
 \alias{print,config_Shadow-method}
 \alias{print,output_Static-method}
 \alias{print,output_Shadow-method}
+\alias{print,output_Shadow_all-method}
 \alias{print,exposure_rate_plot-method}
 \alias{print,summary_item_pool-method}
 \alias{print,summary_constraints-method}
@@ -55,6 +56,8 @@
 
 \S4method{print}{output_Shadow}(x)
 
+\S4method{print}{output_Shadow_all}(x)
+
 \S4method{print}{exposure_rate_plot}(x)
 
 \S4method{print}{summary_item_pool}(x)
@@ -68,9 +71,9 @@
 \arguments{
 \item{x}{an object to print.}
 
-\item{index_only}{if \code{TRUE} (default), only print item indices. Otherwise, print all item attributes.}
+\item{index_only}{if \code{TRUE} then only print item indices. If \code{FALSE} then print all item attributes. (default = \code{TRUE})}
 
-\item{digits}{minimal number of *significant* digits, see \code{\link{print.default}}.}
+\item{digits}{minimal number of *significant* digits. See \code{\link{print.default}}.}
 }
 \description{
 Extension of print() for objects in TestDesign package

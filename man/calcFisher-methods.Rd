@@ -17,7 +17,7 @@
 \alias{calcFisher,item_GPC,matrix-method}
 \alias{calcFisher,item_GR,matrix-method}
 \alias{calcFisher,item_pool,matrix-method}
-\alias{calcFisher,pool_cluster,numeric-method}
+\alias{calcFisher,item_pool_cluster,numeric-method}
 \title{Calculate Fisher information}
 \usage{
 calcFisher(object, theta)
@@ -50,7 +50,7 @@ calcFisher(object, theta)
 
 \S4method{calcFisher}{item_pool,matrix}(object, theta)
 
-\S4method{calcFisher}{pool_cluster,numeric}(object, theta)
+\S4method{calcFisher}{item_pool_cluster,numeric}(object, theta)
 }
 \arguments{
 \item{object}{an \code{\link{item}} or an \code{\linkS4class{item_pool}} object.}
@@ -58,6 +58,17 @@ calcFisher(object, theta)
 \item{theta}{theta values to use.}
 }
 \value{
+\describe{
+  \item{\code{\link{item}} object:}{\code{\link{calcFisher}} returns a (\emph{nq}, \emph{1}) matrix of information values.}
+  \item{\code{\linkS4class{item_pool}} object:}{\code{\link{calcProb}} returns a (\emph{nq}, \emph{ni}) matrix of information values.}
+}
+\describe{
+  \item{\emph{notations}}{\itemize{
+    \item{\emph{nq} denotes the number of theta values.}
+    \item{\emph{ni} denotes the number of items in the \code{\linkS4class{item_pool}} object.}
+  }}
+}
+
 A vector of Fisher information values over theta (nq values) for a single item or a matrix of dimension (nq, ni) for an "item_pool".
 }
 \description{

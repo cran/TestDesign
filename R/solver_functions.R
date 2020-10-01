@@ -3,12 +3,12 @@ NULL
 
 #' Run Test Assembly
 #'
-#' Perform test assembly with specified configurations. This function is used internally in \code{\link{Static}} and \code{\link{Shadow}}.
+#' \code{\link{runAssembly}} is a function to perform test assembly. This function is used internally in \code{\link{Static}} and \code{\link{Shadow}}.
 #'
-#' @param config A \code{\linkS4class{config_Static}} or a \code{\linkS4class{config_Shadow}} object containing configuration options. Use \code{\link{createStaticTestConfig}} and \code{\link{createShadowTestConfig}} for this.
-#' @param constraints A list representing optimization constraints. Use \code{\link{loadConstraints}} for this.
-#' @param xdata A list containing extra data to be used in \code{\link{Shadow}}, representing the constraints for force-including previously administered items.
-#' @param objective Information for each item in the pool.
+#' @param config a \code{\linkS4class{config_Static}} or a \code{\linkS4class{config_Shadow}} object containing configuration options. Use \code{\link{createStaticTestConfig}} and \code{\link{createShadowTestConfig}} for this.
+#' @param constraints a \code{\linkS4class{constraints}} object. Use \code{\link{loadConstraints}} for this.
+#' @param xdata a list containing extra constraints in MIP form, to force-include previously administered items.
+#' @param objective the information value for each item in the pool.
 #'
 #' @return A list containing the following entries:
 #' \itemize{
@@ -267,14 +267,19 @@ runMIP <- function(solver, obj, mat, dir, rhs, maximize, types,
     constraints_dir[constraints_dir == "=="] <- "="
 
     if (!is.null(gap_limit)) {
-      invisible(capture.output(MIP <- gurobi::gurobi(
-        list(obj = obj, modelsense = ifelse(maximize, "max", "min"), rhs = rhs, sense = constraints_dir, vtype = types, A = mat),
-        params = list(MIPGap = gap_limit, TimeLimit = time_limit),
-        env = NULL)))
+      tmp <- invisible(capture.output({
+        MIP <- gurobi::gurobi(
+          model = list(obj = obj, modelsense = ifelse(maximize, "max", "min"), rhs = rhs, sense = constraints_dir, vtype = types, A = mat),
+          params = list(MIPGap = gap_limit, TimeLimit = time_limit),
+          env = NULL)
+      }))
     } else {
-      invisible(capture.output(MIP <- gurobi::gurobi(
-        list(obj = obj, modelsense = ifelse(maximize, "max", "min"), rhs = rhs, sense = constraints_dir, vtype = types, A = mat),
-        params = list(TimeLimit = time_limit), env = NULL)))
+      tmp <- invisible(capture.output({
+        MIP <- gurobi::gurobi(
+          model = list(obj = obj, modelsense = ifelse(maximize, "max", "min"), rhs = rhs, sense = constraints_dir, vtype = types, A = mat),
+          params = list(TimeLimit = time_limit),
+          env = NULL)
+      }))
     }
 
     MIP[["solution"]] <- MIP$x

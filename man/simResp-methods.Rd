@@ -10,8 +10,8 @@
 \alias{simResp,item_GPC,numeric-method}
 \alias{simResp,item_GR,numeric-method}
 \alias{simResp,item_pool,numeric-method}
-\alias{simResp,pool_cluster,numeric-method}
-\alias{simResp,pool_cluster,list-method}
+\alias{simResp,item_pool_cluster,numeric-method}
+\alias{simResp,item_pool_cluster,list-method}
 \title{Simulate item response data}
 \usage{
 simResp(object, theta)
@@ -30,11 +30,11 @@ simResp(object, theta)
 
 \S4method{simResp}{item_pool,numeric}(object, theta)
 
-\S4method{simResp}{pool_cluster,numeric}(object, theta)
+\S4method{simResp}{item_pool_cluster,numeric}(object, theta)
 
-\S4method{simResp}{pool_cluster,list}(object, theta)
+\S4method{simResp}{item_pool_cluster,list}(object, theta)
 
-\S4method{simResp}{pool_cluster,list}(object, theta)
+\S4method{simResp}{item_pool_cluster,list}(object, theta)
 }
 \arguments{
 \item{object}{an \code{\link{item}} or an \code{\linkS4class{item_pool}} object.}
@@ -42,10 +42,21 @@ simResp(object, theta)
 \item{theta}{theta values to use.}
 }
 \value{
-\code{\link{simResp}} returns simulated item response data.
+\describe{
+  \item{\code{\link{item}} object:}{\code{\link{simResp}} returns a length \emph{nq} vector containing simulated item response data.}
+  \item{\code{\linkS4class{item_pool}} object:}{\code{\link{simResp}} returns a (\emph{nq}, \emph{ni}) matrix containing simulated item response data.}
+}
 }
 \description{
 \code{\link{simResp}} is a function to simulate item response data.
+}
+\details{
+\describe{
+  \item{\emph{notations}}{\itemize{
+    \item{\emph{nq} denotes the number of theta values.}
+    \item{\emph{ni} denotes the number of items in the \code{\linkS4class{item_pool}} object.}
+  }}
+}
 }
 \examples{
 
