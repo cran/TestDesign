@@ -5,16 +5,16 @@ normalizeConstraintData <- function(x) {
   names(x)    <- toupper(names(x))
 
   validCONSTRAINT <- as.character(1:dim(x)[1])
-  if (is.null(x$CONSTRAINT)) {
-    CONSTRAINT <- validCONSTRAINT
-    x <- cbind(CONSTRAINT, x)
+
+  if (!"CONSTRAINT_ID" %in% names(x)) {
+    x$CONSTRAINT_ID <- sprintf("C%s", validCONSTRAINT)
   }
-  if (
-    any(x$CONSTRAINT != validCONSTRAINT) |
-    !inherits(x$CONSTRAINT, "character")) {
-    x$CONSTRAINT <- validCONSTRAINT
-    warning("the 'CONSTRAINT' column was ignored and replaced with valid indices")
+
+  if ("CONSTRAINT" %in% names(x)) {
+    x$CONSTRAINT <- NULL
+    warning("the 'CONSTRAINT' column was ignored because it is reserved for internal use.")
   }
+  x <- data.frame(cbind(CONSTRAINT = 1:nrow(x), x))
 
   x$TYPE      <- toupper(x$TYPE)
   x$WHAT      <- toupper(x$WHAT)
@@ -222,8 +222,9 @@ parseConstraintData <- function(x, attrib, constants) {
   s_count   <- constants$s_count
 
   o <- new("constraint")
-  o@constraint <- x$CONSTRAINT
-  o@suspend    <- x$ONOFF == "OFF"
+  o@constraint    <- x$CONSTRAINT
+  o@constraint_id <- x$CONSTRAINT_ID
+  o@suspend       <- x$ONOFF == "OFF"
 
   if (x$TYPE %in% c("NUMBER", "COUNT")) {
 
@@ -584,7 +585,7 @@ addSolutionToConstraintData <- function(x, attrib, item_idx, all_values) {
       if (x$WHAT == "ITEM") {
         x[[solution_name]] <- length(item_idx)
       }
-      if (x$WHAT == "STIMULUS") {
+      if (x$WHAT %in% c("STIMULUS", "PASSAGE")) {
         x[[solution_name]] <- length(unique(attrib@data$STID[item_idx]))
       }
 
@@ -738,6 +739,19 @@ getSolutionAttributes <- function(constraints, item_idx, all_values = FALSE) {
           item_idx,
           FALSE
         )
+    }
+
+    if (all(is.na(o$mean))) {
+      o$mean <- NULL
+    }
+    if (all(is.na(o$sd))) {
+      o$sd <- NULL
+    }
+    if (all(is.na(o$min))) {
+      o$min <- NULL
+    }
+    if (all(is.na(o$max))) {
+      o$max <- NULL
     }
 
     return(o)

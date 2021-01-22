@@ -30,6 +30,9 @@ NULL
 #'
 #' @description Extension of plot() for objects in TestDesign package
 #'
+#' @details The base \code{plot()} does not allow directly storing the plot as a object. \code{TestDesign::plot()} calls \code{recordPlot()} internally to allow this. This adds convenience, but also introduces a caveat when using with the 'knitr' package.
+#' The caveat is that using \code{plot()} alone will not render the plot. This issue can be resolved by using \code{p <- plot()} and \code{print(p)} in two separate blocks in the markdown document.
+#'
 #' @docType methods
 #' @rdname plot-methods
 #' @export
@@ -41,6 +44,7 @@ NULL
 #' @description Extension of summary() for objects in TestDesign package
 #'
 #' @param object an object to summarize.
+#' @param simple if \code{TRUE}, do not print constraints. (default = \code{FALSE})
 #'
 #' @examples
 #' summary(itempool_science)
@@ -49,10 +53,12 @@ NULL
 #' cfg <- createStaticTestConfig()
 #' solution <- Static(cfg, constraints_science)
 #' summary(solution)
+#' summary(solution, simple = TRUE)
 #'
 #' cfg <- createShadowTestConfig()
 #' solution <- Shadow(cfg, constraints_science, true_theta = seq(-1, 1, 1))
 #' summary(solution)
+#' summary(solution, simple = TRUE)
 #'
 #' @docType methods
 #' @rdname summary-methods

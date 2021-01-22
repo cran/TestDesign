@@ -15,16 +15,19 @@
 
 <title>Creating constraints in TestDesign package</title>
 
-<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
-// be compatible with the behavior of Pandoc < 2.8).
-document.addEventListener('DOMContentLoaded', function(e) {
-  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
-  var i, h, a;
-  for (i = 0; i < hs.length; i++) {
-    h = hs[i];
-    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
-    a = h.attributes;
-    while (a.length > 0) h.removeAttribute(a[0].name);
+<script>// Hide empty <a> tag within highlighted CodeBlock for screen reader accessibility (see https://github.com/jgm/pandoc/issues/6352#issuecomment-626106786) -->
+// v0.0.1
+// Written by JooYoung Seo (jooyoung@psu.edu) and Atsushi Yasumoto on June 1st, 2020.
+
+document.addEventListener('DOMContentLoaded', function() {
+  const codeList = document.getElementsByClassName("sourceCode");
+  for (var i = 0; i < codeList.length; i++) {
+    var linkList = codeList[i].getElementsByTagName('a');
+    for (var j = 0; j < linkList.length; j++) {
+      if (linkList[j].innerHTML === "") {
+        linkList[j].setAttribute('aria-hidden', 'true');
+      }
+    }
   }
 });
 </script>
@@ -67,9 +70,16 @@ background-color: #f5f5f5;
 }
 .lightable-classic {
 border-top: 0.16em solid #111111;
+border-bottom: 0.16em solid #111111;
 width: 100%;
 margin-bottom: 10px;
 margin: 10px 5px;
+}
+.lightable-classic tfoot tr td {
+border: 0;
+}
+.lightable-classic tfoot tr:first-child td {
+border-top: 0.14em solid #111111;
 }
 .lightable-classic caption {
 color: #222222;
@@ -88,9 +98,6 @@ color: #222222;
 .lightable-classic thead tr:last-child th {
 border-bottom: 0.10em solid #111111;
 }
-.lightable-classic tbody tr:last-child td {
-border-bottom: 0.14em solid #111111;
-}
 .lightable-classic.lightable-hover tbody tr:hover {
 background-color: #F9EEC1;
 }
@@ -99,8 +106,15 @@ background-color: #f5f5f5;
 }
 .lightable-classic-2 {
 border-top: 3px double #111111;
+border-bottom: 3px double #111111;
 width: 100%;
 margin-bottom: 10px;
+}
+.lightable-classic-2 tfoot tr td {
+border: 0;
+}
+.lightable-classic-2 tfoot tr:first-child td {
+border-top: 3px double #111111;
 }
 .lightable-classic-2 caption {
 color: #222222;
@@ -137,6 +151,12 @@ border: 1px solid #EEE;
 border-collapse: collapse;
 margin-bottom: 10px;
 }
+.lightable-material tfoot tr td {
+border: 0;
+}
+.lightable-material tfoot tr:first-child td {
+border-top: 1px solid #EEE;
+}
 .lightable-material th {
 height: 56px;
 padding-left: 16px;
@@ -170,6 +190,12 @@ border-collapse: collapse;
 margin-bottom: 10px;
 background-color: #363640;
 }
+.lightable-material-dark tfoot tr td {
+border: 0;
+}
+.lightable-material-dark tfoot tr:first-child td {
+border-top: 1px solid #FFFFFF12;
+}
 .lightable-material-dark th {
 height: 56px;
 padding-left: 16px;
@@ -200,6 +226,12 @@ width: 100%;
 margin-bottom: 10px;
 color: #444;
 }
+.lightable-paper tfoot tr td {
+border: 0;
+}
+.lightable-paper tfoot tr:first-child td {
+border-top: 1px solid #00000020;
+}
 .lightable-paper thead tr:last-child th {
 color: #666;
 vertical-align: bottom;
@@ -223,6 +255,16 @@ background-color: #00000008;
 border: 0;
 }
 </style>
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
 
 
 
@@ -433,7 +475,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <thead>
 <tr>
 <th style="text-align:left;">
-CONSTRAINT
+CONSTRAINT_ID
 </th>
 <th style="text-align:left;">
 TYPE
@@ -458,7 +500,7 @@ ONOFF
 <tbody>
 <tr>
 <td style="text-align:left;width: 5em; ">
-1
+C1
 </td>
 <td style="text-align:left;width: 5em; ">
 Number
@@ -479,7 +521,7 @@ Item
 </tr>
 <tr>
 <td style="text-align:left;width: 5em; ">
-2
+C2
 </td>
 <td style="text-align:left;width: 5em; ">
 Number
@@ -501,7 +543,7 @@ LEVEL == 3
 </tr>
 <tr>
 <td style="text-align:left;width: 5em; ">
-3
+C3
 </td>
 <td style="text-align:left;width: 5em; ">
 Number
@@ -523,7 +565,7 @@ LEVEL == 4
 </tr>
 <tr>
 <td style="text-align:left;width: 5em; ">
-4
+C4
 </td>
 <td style="text-align:left;width: 5em; ">
 Number
@@ -545,7 +587,7 @@ LEVEL == 5
 </tr>
 <tr>
 <td style="text-align:left;width: 5em; ">
-5
+C5
 </td>
 <td style="text-align:left;width: 5em; ">
 Number
@@ -567,12 +609,12 @@ STANDARD == 1
 </tr>
 </tbody>
 </table>
-<p>Constraints data must have seven columns, named as <code>CONSTRAINT</code>, <code>TYPE</code>, <code>WHAT</code>, <code>CONDITION</code>, <code>LB</code>, <code>UB</code>, <code>ONOFF</code> on the first row. Beginning from the second row, each row must have corresponding values for each column. A convenient way to creating constraints is to use a spreadsheet application (e.g. Excel) and work on the content from there.</p>
+<p>Constraints data must have seven columns, named as <code>CONSTRAINT_ID</code>, <code>TYPE</code>, <code>WHAT</code>, <code>CONDITION</code>, <code>LB</code>, <code>UB</code>, <code>ONOFF</code> on the first row. Beginning from the second row, each row must have corresponding values for each column. A convenient way to creating constraints is to use a spreadsheet application (e.g. Excel) and work on the content from there.</p>
 <p><br /></p>
 <hr />
-<div id="constraint" class="section level4">
-<h4>CONSTRAINT</h4>
-<p>This column serves as indices. One number must be put into each row, beginning from 1 and incrementing by 1. <code>loadConstraints()</code> recreates these if necessary.</p>
+<div id="constraint_id" class="section level4">
+<h4>CONSTRAINT_ID</h4>
+<p>This column serves as identifiers. Character values can be used as long as the values are unique.</p>
 <p><br /></p>
 <hr />
 </div>
@@ -587,7 +629,7 @@ STANDARD == 1
 <thead>
 <tr>
 <th style="text-align:left;">
-CONSTRAINT
+CONSTRAINT_ID
 </th>
 <th style="text-align:left;">
 TYPE
@@ -612,7 +654,7 @@ ONOFF
 <tbody>
 <tr>
 <td style="text-align:left;width: 5em; ">
-1
+C1
 </td>
 <td style="text-align:left;width: 5em; background-color: cyan !important;">
 Number
@@ -641,7 +683,7 @@ Item
 <thead>
 <tr>
 <th style="text-align:left;">
-CONSTRAINT
+CONSTRAINT_ID
 </th>
 <th style="text-align:left;">
 TYPE
@@ -666,7 +708,7 @@ ONOFF
 <tbody>
 <tr>
 <td style="text-align:left;width: 5em; ">
-2
+C2
 </td>
 <td style="text-align:left;width: 5em; background-color: cyan !important;">
 Sum
@@ -696,7 +738,7 @@ WORDS
 <thead>
 <tr>
 <th style="text-align:left;">
-CONSTRAINT
+CONSTRAINT_ID
 </th>
 <th style="text-align:left;">
 TYPE
@@ -721,7 +763,7 @@ ONOFF
 <tbody>
 <tr>
 <td style="text-align:left;width: 5em; ">
-32
+C32
 </td>
 <td style="text-align:left;width: 5em; background-color: cyan !important;">
 Order
@@ -749,7 +791,7 @@ LEVEL
 <thead>
 <tr>
 <th style="text-align:left;">
-CONSTRAINT
+CONSTRAINT_ID
 </th>
 <th style="text-align:left;">
 TYPE
@@ -774,7 +816,7 @@ ONOFF
 <tbody>
 <tr>
 <td style="text-align:left;width: 5em; ">
-33
+C33
 </td>
 <td style="text-align:left;width: 5em; background-color: cyan !important;">
 Enemy
@@ -802,7 +844,7 @@ ID %in% c(“SC00001”, “SC00002”)
 <thead>
 <tr>
 <th style="text-align:left;">
-CONSTRAINT
+CONSTRAINT_ID
 </th>
 <th style="text-align:left;">
 TYPE
@@ -827,7 +869,7 @@ ONOFF
 <tbody>
 <tr>
 <td style="text-align:left;width: 5em; ">
-34
+C34
 </td>
 <td style="text-align:left;width: 5em; background-color: cyan !important;">
 Include
@@ -855,7 +897,7 @@ ID %in% c(“SC00003”, “SC00004”)
 <thead>
 <tr>
 <th style="text-align:left;">
-CONSTRAINT
+CONSTRAINT_ID
 </th>
 <th style="text-align:left;">
 TYPE
@@ -880,7 +922,7 @@ ONOFF
 <tbody>
 <tr>
 <td style="text-align:left;width: 5em; ">
-35
+C35
 </td>
 <td style="text-align:left;width: 5em; background-color: cyan !important;">
 Exclude
@@ -908,7 +950,7 @@ PTBIS &lt; 0.15
 <thead>
 <tr>
 <th style="text-align:left;">
-CONSTRAINT
+CONSTRAINT_ID
 </th>
 <th style="text-align:left;">
 TYPE
@@ -933,7 +975,7 @@ ONOFF
 <tbody>
 <tr>
 <td style="text-align:left;width: 5em; ">
-36
+C36
 </td>
 <td style="text-align:left;width: 5em; background-color: cyan !important;">
 AllOrNone
@@ -977,7 +1019,7 @@ ID %in% c(“SC00005”, “SC00006”)
 <thead>
 <tr>
 <th style="text-align:left;">
-CONSTRAINT
+CONSTRAINT_ID
 </th>
 <th style="text-align:left;">
 TYPE
@@ -1002,7 +1044,7 @@ ONOFF
 <tbody>
 <tr>
 <td style="text-align:left;width: 5em; ">
-2
+C2
 </td>
 <td style="text-align:left;width: 5em; ">
 Sum
@@ -1029,7 +1071,7 @@ WORDS
 <thead>
 <tr>
 <th style="text-align:left;">
-CONSTRAINT
+CONSTRAINT_ID
 </th>
 <th style="text-align:left;">
 TYPE
@@ -1054,7 +1096,7 @@ ONOFF
 <tbody>
 <tr>
 <td style="text-align:left;width: 5em; ">
-3
+C3
 </td>
 <td style="text-align:left;width: 5em; ">
 Sum
@@ -1081,7 +1123,7 @@ WORDS, DOK == 1
 <thead>
 <tr>
 <th style="text-align:left;">
-CONSTRAINT
+CONSTRAINT_ID
 </th>
 <th style="text-align:left;">
 TYPE
@@ -1106,7 +1148,7 @@ ONOFF
 <tbody>
 <tr>
 <td style="text-align:left;width: 5em; ">
-3
+C3
 </td>
 <td style="text-align:left;width: 5em; ">
 Number
@@ -1142,7 +1184,7 @@ Per Stimulus
 <thead>
 <tr>
 <th style="text-align:left;">
-CONSTRAINT
+CONSTRAINT_ID
 </th>
 <th style="text-align:left;">
 TYPE
@@ -1167,7 +1209,7 @@ ONOFF
 <tbody>
 <tr>
 <td style="text-align:left;width: 5em; ">
-1
+C1
 </td>
 <td style="text-align:left;width: 5em; ">
 Number
@@ -1196,7 +1238,7 @@ Item
 <thead>
 <tr>
 <th style="text-align:left;">
-CONSTRAINT
+CONSTRAINT_ID
 </th>
 <th style="text-align:left;">
 TYPE
@@ -1221,7 +1263,7 @@ ONOFF
 <tbody>
 <tr>
 <td style="text-align:left;width: 5em; ">
-17
+C17
 </td>
 <td style="text-align:left;width: 5em; ">
 Number
@@ -1253,7 +1295,7 @@ DOK &gt;= 2
 <thead>
 <tr>
 <th style="text-align:left;">
-CONSTRAINT
+CONSTRAINT_ID
 </th>
 <th style="text-align:left;">
 TYPE
@@ -1278,7 +1320,7 @@ ONOFF
 <tbody>
 <tr>
 <td style="text-align:left;width: 5em; ">
-18
+C18
 </td>
 <td style="text-align:left;width: 5em; ">
 Order

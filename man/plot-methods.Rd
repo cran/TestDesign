@@ -21,6 +21,7 @@
   examinee_id = 1,
   position = NULL,
   theta_range = c(-5, 5),
+  ylim = NULL,
   color = "blue",
   z_ci = 1.96,
   simple = TRUE,
@@ -40,6 +41,7 @@
   examinee_id = 1,
   position = NULL,
   theta_range = c(-5, 5),
+  ylim = NULL,
   color = "blue",
   z_ci = 1.96,
   simple = TRUE,
@@ -59,6 +61,7 @@
   examinee_id = 1,
   position = NULL,
   theta_range = c(-5, 5),
+  ylim = NULL,
   color = "blue",
   z_ci = 1.96,
   simple = TRUE,
@@ -77,6 +80,7 @@
   select = NULL,
   examinee_id = 1,
   theta_range = c(-5, 5),
+  ylim = NULL,
   color = "blue",
   z_ci = 1.96,
   simple = FALSE,
@@ -96,6 +100,7 @@
   examinee_id = 1,
   position = NULL,
   theta_range = c(-5, 5),
+  ylim = NULL,
   color = "blue",
   z_ci = 1.96,
   simple = FALSE,
@@ -144,6 +149,8 @@
 
 \item{theta_range}{used in \code{\linkS4class{output_Shadow}} and \code{\linkS4class{output_Shadow_all}} with \code{type = 'audit'}. The theta range to plot. (default = \code{c(-5, 5)})}
 
+\item{ylim}{(optional) the y-axis plot range. Used in most plot types.}
+
 \item{color}{the color of the curve.}
 
 \item{z_ci}{used in \code{\linkS4class{output_Shadow}} and \code{\linkS4class{output_Shadow_all}} with \code{type = 'audit'}. The range to use for confidence intervals. (default = \code{1.96})}
@@ -158,6 +165,10 @@
 }
 \description{
 Extension of plot() for objects in TestDesign package
+}
+\details{
+The base \code{plot()} does not allow directly storing the plot as a object. \code{TestDesign::plot()} calls \code{recordPlot()} internally to allow this. This adds convenience, but also introduces a caveat when using with the 'knitr' package.
+The caveat is that using \code{plot()} alone will not render the plot. This issue can be resolved by using \code{p <- plot()} and \code{print(p)} in two separate blocks in the markdown document.
 }
 \examples{
 

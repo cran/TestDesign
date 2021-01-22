@@ -105,7 +105,8 @@ setClass("config_Shadow",
       method                    = "MFI",
       info_type                 = "FISHER",
       initial_theta             = NULL,
-      fixed_theta               = NULL
+      fixed_theta               = NULL,
+      target_value              = NULL
     ),
     content_balancing = list(
       method                    = "STA"
@@ -116,6 +117,7 @@ setClass("config_Shadow",
       time_limit                = 60,
       gap_limit                 = .05,
       gap_limit_abs             = .05,
+      obj_tol                   = .05,
       retry                     = 5
     ),
     MCMC = list(
@@ -159,6 +161,8 @@ setClass("config_Shadow",
       max_iter                  = 50,
       crit                      = 0.001,
       max_change                = 1.0,
+      use_step_size             = FALSE,
+      step_size                 = 0.5,
       do_Fisher                 = TRUE,
       fence_slope               = 5,
       fence_difficulty          = c(-5, 5)
@@ -173,6 +177,8 @@ setClass("config_Shadow",
       max_iter                  = 50,
       crit                      = 0.001,
       max_change                = 1.0,
+      use_step_size             = FALSE,
+      step_size                 = 0.5,
       do_Fisher                 = TRUE,
       fence_slope               = 5,
       fence_difficulty          = c(-5, 5)
@@ -190,14 +196,14 @@ setClass("config_Shadow",
     for (solver_name in c("gurobi", "Rsymphony", "lpsymphony", "Rglpk")) {
       if (toupper(object@MIP$solver) == toupper(solver_name)) {
         if (!requireNamespace(solver_name, quietly = TRUE)) {
-          msg <- sprintf("config@MIP: could not find the specified $solver package '$s'", solver_name)
+          msg <- sprintf("config@MIP: could not find the specified solver package '%s'", solver_name)
           err <- c(err, msg)
         }
       }
     }
 
-    if (!toupper(object@item_selection$method) %in% c("MFI", "MPWI", "EB", "FB", "FIXED")) {
-      msg <- sprintf("config@item_selection: unrecognized $method '%s' (accepts MFI, MPWI, EB, FB, or FIXED)", object@item_selection$method)
+    if (!toupper(object@item_selection$method) %in% c("MFI", "MPWI", "EB", "FB", "GFI", "FIXED")) {
+      msg <- sprintf("config@item_selection: unrecognized $method '%s' (accepts MFI, MPWI, EB, FB, GFI, or FIXED)", object@item_selection$method)
       err <- c(err, msg)
     }
     if (toupper(object@item_selection$method) %in% c("FIXED")) {
@@ -218,6 +224,11 @@ setClass("config_Shadow",
     }
     if (!object@exposure_control$method %in% c("NONE", "ELIGIBILITY", "BIGM", "BIGM-BAYESIAN")) {
       msg <- sprintf("config@exposure_control: unrecognized $method '%s' (accepts NONE, ELIGIBILITY, BIGM, or BIGM-BAYESIAN)", object@exposure_control$method)
+      err <- c(err, msg)
+    }
+    if (toupper(object@item_selection$method) %in% c("GFI") &
+      object@exposure_control$method %in% c("ELIGIBILITY")) {
+      msg <- sprintf("config@exposure_control: $method 'ELIGIBILITY' is not compatible with @item_selection$method 'GFI'")
       err <- c(err, msg)
     }
     if (!length(object@exposure_control$max_exposure_rate) %in% c(1, object@exposure_control$n_segment)) {
@@ -273,10 +284,11 @@ setClass("config_Shadow",
 #'
 #' @param item_selection a named list containing item selection criteria.
 #' \itemize{
-#'   \item{\code{method}} the type of selection criteria. Accepts \code{MFI, MPWI, FB, EB}. (default = \code{MFI})
+#'   \item{\code{method}} the type of selection criteria. Accepts \code{MFI, MPWI, FB, EB, GFI}. (default = \code{MFI})
 #'   \item{\code{info_type}} the type of information. Accepts \code{FISHER}. (default = \code{FISHER})
 #'   \item{\code{initial_theta}} (optional) initial theta values to use.
 #'   \item{\code{fixed_theta}} (optional) fixed theta values to use throughout all item positions.
+#'   \item{\code{target_value}} (optional) the target value to use for \code{method = 'GFI'}.
 #' }
 #' @param content_balancing a named list containing content balancing options.
 #' \itemize{
@@ -289,6 +301,7 @@ setClass("config_Shadow",
 #'   \item{\code{time_limit}} time limit in seconds. Used in solvers \code{lpsymphony, Rsymphony, gurobi, Rglpk}. (default = \code{60})
 #'   \item{\code{gap_limit}} search termination criterion. Gap limit in relative scale passed onto the solver. Used in solver \code{gurobi}. (default = \code{.05})
 #'   \item{\code{gap_limit_abs}} search termination criterion. Gap limit in absolute scale passed onto the solver. Used in solvers \code{lpsymphony, Rsymphony}. (default = \code{0.05})
+#'   \item{\code{obj_tol}} search termination criterion. The lower bound to use on the minimax deviation variable. Used when \code{item_selection$method} is \code{GFI}, and ignored otherwise. (default = \code{0.05})
 #'   \item{\code{retry}} number of times to retry running the solver if the solver returns no solution. Some solvers incorrectly return no solution even when a solution exists. This is the number of attempts to verify that the problem is indeed infeasible in such cases. Set to \code{0} to not retry. (default = \code{5})
 #' }
 #' @param MCMC a named list containing Markov-chain Monte Carlo configurations for obtaining posterior samples.
@@ -337,6 +350,8 @@ setClass("config_Shadow",
 #'   \item{\code{max_iter}} maximum number of Newton-Raphson iterations. Used when \code{method} is \code{MLE}. (default = \code{50})
 #'   \item{\code{crit}} convergence criterion. Used when \code{method} is \code{MLE}. (default = \code{1e-03})
 #'   \item{\code{max_change}} maximum change in ML estimates between iterations. Changes exceeding this value is clipped to this value. Used when \code{method} is \code{MLE}. (default = \code{1.0})
+#'   \item{\code{use_step_size}} set \code{TRUE} to use \code{step_size}. Used when \code{method} is \code{MLE} or \code{MLEF}. (default = \code{FALSE})
+#'   \item{\code{step_size}} upper bound to impose on the absolute change in initial theta and estimated theta. Absolute changes exceeding this value will be capped to \code{step_size}. Used when \code{method} is \code{MLE} or \code{MLEF}. (default = \code{0.5})
 #'   \item{\code{do_Fisher}} set \code{TRUE} to use Fisher's method of scoring. Used when \code{method} is \code{MLE}. (default = \code{TRUE})
 #'   \item{\code{fence_slope}} slope parameter to use for \code{method = 'MLEF'}. This must have two values in total, for the lower and upper bound item respectively. Use one value to use the same value for both bounds. (default = \code{5})
 #'   \item{\code{fence_difficulty}} difficulty parameters to use for \code{method = 'MLEF'}. This must have two values in total, for the lower and upper bound item respectively. (default = \code{c(-5, 5)})
@@ -352,6 +367,8 @@ setClass("config_Shadow",
 #'   \item{\code{max_iter}} maximum number of Newton-Raphson iterations. Used when \code{method} is \code{MLE}. (default = \code{50})
 #'   \item{\code{crit}} convergence criterion. Used when \code{method} is \code{MLE}. (default = \code{1e-03})
 #'   \item{\code{max_change}} maximum change in ML estimates between iterations. Changes exceeding this value is clipped to this value. Used when \code{method} is \code{MLE}. (default = \code{1.0})
+#'   \item{\code{use_step_size}} set \code{TRUE} to use \code{step_size}. Used when \code{method} is \code{MLE} or \code{MLEF}.  (default = \code{FALSE})
+#'   \item{\code{step_size}} upper bound to impose on the absolute change in initial theta and estimated theta. Absolute changes exceeding this value will be capped to \code{step_size}. Used when \code{method} is \code{MLE} or \code{MLEF}. (default = \code{0.5})
 #'   \item{\code{do_Fisher}} set \code{TRUE} to use Fisher's method of scoring. Used when \code{method} is \code{MLE}. (default = \code{TRUE})
 #'   \item{\code{fence_slope}} slope parameter to use for \code{method = 'MLEF'}. This must have two values in total, for the lower and upper bound item respectively. Use one value to use the same value for both bounds. (default = \code{5})
 #'   \item{\code{fence_difficulty}} difficulty parameters to use for \code{method = 'MLEF'}. This must have two values in total, for the lower and upper bound item respectively. (default = \code{c(-5, 5)})
@@ -463,7 +480,7 @@ setClass("output_Shadow_all",
     data                        = "matrix_or_null",
     true_theta                  = "numeric_or_null",
     prior                       = "matrix_or_numeric_or_null",
-    prior_par                   = "numeric_or_null"
+    prior_par                   = "matrix_or_numeric_or_null"
   ),
   prototype = list(
     output                      = NULL,

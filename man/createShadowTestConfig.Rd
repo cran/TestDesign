@@ -23,10 +23,11 @@ createShadowTestConfig(
 \arguments{
 \item{item_selection}{a named list containing item selection criteria.
 \itemize{
-  \item{\code{method}} the type of selection criteria. Accepts \code{MFI, MPWI, FB, EB}. (default = \code{MFI})
+  \item{\code{method}} the type of selection criteria. Accepts \code{MFI, MPWI, FB, EB, GFI}. (default = \code{MFI})
   \item{\code{info_type}} the type of information. Accepts \code{FISHER}. (default = \code{FISHER})
   \item{\code{initial_theta}} (optional) initial theta values to use.
   \item{\code{fixed_theta}} (optional) fixed theta values to use throughout all item positions.
+  \item{\code{target_value}} (optional) the target value to use for \code{method = 'GFI'}.
 }}
 
 \item{content_balancing}{a named list containing content balancing options.
@@ -41,6 +42,7 @@ createShadowTestConfig(
   \item{\code{time_limit}} time limit in seconds. Used in solvers \code{lpsymphony, Rsymphony, gurobi, Rglpk}. (default = \code{60})
   \item{\code{gap_limit}} search termination criterion. Gap limit in relative scale passed onto the solver. Used in solver \code{gurobi}. (default = \code{.05})
   \item{\code{gap_limit_abs}} search termination criterion. Gap limit in absolute scale passed onto the solver. Used in solvers \code{lpsymphony, Rsymphony}. (default = \code{0.05})
+  \item{\code{obj_tol}} search termination criterion. The lower bound to use on the minimax deviation variable. Used when \code{item_selection$method} is \code{GFI}, and ignored otherwise. (default = \code{0.05})
   \item{\code{retry}} number of times to retry running the solver if the solver returns no solution. Some solvers incorrectly return no solution even when a solution exists. This is the number of attempts to verify that the problem is indeed infeasible in such cases. Set to \code{0} to not retry. (default = \code{5})
 }}
 
@@ -94,6 +96,8 @@ createShadowTestConfig(
   \item{\code{max_iter}} maximum number of Newton-Raphson iterations. Used when \code{method} is \code{MLE}. (default = \code{50})
   \item{\code{crit}} convergence criterion. Used when \code{method} is \code{MLE}. (default = \code{1e-03})
   \item{\code{max_change}} maximum change in ML estimates between iterations. Changes exceeding this value is clipped to this value. Used when \code{method} is \code{MLE}. (default = \code{1.0})
+  \item{\code{use_step_size}} set \code{TRUE} to use \code{step_size}. Used when \code{method} is \code{MLE} or \code{MLEF}. (default = \code{FALSE})
+  \item{\code{step_size}} upper bound to impose on the absolute change in initial theta and estimated theta. Absolute changes exceeding this value will be capped to \code{step_size}. Used when \code{method} is \code{MLE} or \code{MLEF}. (default = \code{0.5})
   \item{\code{do_Fisher}} set \code{TRUE} to use Fisher's method of scoring. Used when \code{method} is \code{MLE}. (default = \code{TRUE})
   \item{\code{fence_slope}} slope parameter to use for \code{method = 'MLEF'}. This must have two values in total, for the lower and upper bound item respectively. Use one value to use the same value for both bounds. (default = \code{5})
   \item{\code{fence_difficulty}} difficulty parameters to use for \code{method = 'MLEF'}. This must have two values in total, for the lower and upper bound item respectively. (default = \code{c(-5, 5)})
@@ -110,6 +114,8 @@ createShadowTestConfig(
   \item{\code{max_iter}} maximum number of Newton-Raphson iterations. Used when \code{method} is \code{MLE}. (default = \code{50})
   \item{\code{crit}} convergence criterion. Used when \code{method} is \code{MLE}. (default = \code{1e-03})
   \item{\code{max_change}} maximum change in ML estimates between iterations. Changes exceeding this value is clipped to this value. Used when \code{method} is \code{MLE}. (default = \code{1.0})
+  \item{\code{use_step_size}} set \code{TRUE} to use \code{step_size}. Used when \code{method} is \code{MLE} or \code{MLEF}.  (default = \code{FALSE})
+  \item{\code{step_size}} upper bound to impose on the absolute change in initial theta and estimated theta. Absolute changes exceeding this value will be capped to \code{step_size}. Used when \code{method} is \code{MLE} or \code{MLEF}. (default = \code{0.5})
   \item{\code{do_Fisher}} set \code{TRUE} to use Fisher's method of scoring. Used when \code{method} is \code{MLE}. (default = \code{TRUE})
   \item{\code{fence_slope}} slope parameter to use for \code{method = 'MLEF'}. This must have two values in total, for the lower and upper bound item respectively. Use one value to use the same value for both bounds. (default = \code{5})
   \item{\code{fence_difficulty}} difficulty parameters to use for \code{method = 'MLEF'}. This must have two values in total, for the lower and upper bound item respectively. (default = \code{c(-5, 5)})

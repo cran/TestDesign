@@ -10,6 +10,7 @@ NULL
 #' @param ipar_se (optional) standard errors. Can be a \code{\link{data.frame}} or the file path of a .csv file.
 #' @param file (deprecated) use \code{ipar} argument instead.
 #' @param se_file (deprecated) use \code{ipar_se} argument instead.
+#' @param unique if \code{TRUE}, item IDs must be unique to create a valid \code{\linkS4class{item_pool}} object. (default = \code{FALSE})
 #'
 #' @return \code{\link{loadItemPool}} returns an \code{\linkS4class{item_pool}} object.
 #'
@@ -47,7 +48,7 @@ NULL
 #' @seealso \code{\link{dataset_science}}, \code{\link{dataset_reading}}, \code{\link{dataset_fatigue}}, \code{\link{dataset_bayes}} for examples.
 #'
 #' @export
-loadItemPool <- function(ipar, ipar_se = NULL, file = NULL, se_file = NULL) {
+loadItemPool <- function(ipar, ipar_se = NULL, file = NULL, se_file = NULL, unique = FALSE) {
 
   if (!missing("se_file")){
     warning("argument 'se_file' is deprecated. Use 'ipar_se' instead.")
@@ -228,6 +229,8 @@ loadItemPool <- function(ipar, ipar_se = NULL, file = NULL, se_file = NULL) {
   tmp[, 3:max(nfields)] <- pool@se
   pool@raw_se <- tmp
 
+  pool@unique <- unique
+
   if (validObject(pool)) {
     return(pool)
   }
@@ -338,7 +341,8 @@ loadItemAttrib <- function(object, pool, file = NULL) {
   }
 
   if ("INDEX" %in% names(item_attrib)) {
-    warning("The 'INDEX' column was ignored and replaced with valid values.")
+    item_attrib$INDEX <- NULL
+    warning("The 'INDEX' column was ignored because it is reserved for internal use.")
   }
   item_attrib <- data.frame(cbind(INDEX = 1:nrow(item_attrib), item_attrib))
 
@@ -438,7 +442,8 @@ loadStAttrib <- function(object, item_attrib, file = NULL) {
     st_attrib[["STID"]] <- as.character(st_attrib[["STID"]])
   }
   if ("STINDEX" %in% names(st_attrib)) {
-    warning("The 'STINDEX' column was ignored and replaced with valid values.")
+    st_attrib$STINDEX <- NULL
+    warning("The 'STINDEX' column was ignored because it is reserved for internal use.")
   }
   st_attrib <- data.frame(cbind(STINDEX = 1:nrow(st_attrib), st_attrib))
 
@@ -461,7 +466,8 @@ loadStAttrib <- function(object, item_attrib, file = NULL) {
 #'
 #' \code{\linkS4class{constraint}} is an S4 class to represent a single constraint.
 #'
-#' @slot constraint the constraint ID string of the constraint.
+#' @slot constraint the numeric index of the constraint.
+#' @slot constraint_id the character ID of the constraint.
 #' @slot nc the number of MIP-format constraints translated from this constraint.
 #' @slot mat,dir,rhs these represent MIP-format constraints. A single MIP-format constraint is associated with a row in \code{mat}, a value in \code{rhs}, and a value in \code{dir}.
 #' \itemize{
@@ -474,20 +480,22 @@ loadStAttrib <- function(object, item_attrib, file = NULL) {
 #' @export
 setClass("constraint",
   slots = c(
-    constraint = "character",
-    nc         = "numeric",
-    mat        = "matrix",
-    dir        = "character",
-    rhs        = "numeric",
-    suspend    = "logical"
+    constraint    = "numeric",
+    constraint_id = "character",
+    nc            = "numeric",
+    mat           = "matrix",
+    dir           = "character",
+    rhs           = "numeric",
+    suspend       = "logical"
   ),
   prototype = list(
-    constraint = character(0),
-    nc         = 0,
-    mat        = matrix(NA, 0, 0),
-    dir        = character(0),
-    rhs        = numeric(0),
-    suspend    = FALSE
+    constraint    = numeric(0),
+    constraint_id = character(0),
+    nc            = 0,
+    mat           = matrix(NA, 0, 0),
+    dir           = character(0),
+    rhs           = numeric(0),
+    suspend       = FALSE
   ),
   validity = function(object) {
     err <- c()
@@ -573,7 +581,7 @@ setClass("constraints",
     ni                     = "numeric",
     ns                     = "numeric",
     id                     = "character",
-    index                  = "character",
+    index                  = "numeric",
     mat                    = "matrix",
     dir                    = "character",
     rhs                    = "numeric",
@@ -596,7 +604,7 @@ setClass("constraints",
     ni                     = numeric(0),
     ns                     = numeric(0),
     id                     = character(0),
-    index                  = character(0),
+    index                  = numeric(0),
     mat                    = matrix(0),
     dir                    = character(0),
     rhs                    = numeric(0),
@@ -610,27 +618,32 @@ setClass("constraints",
   ),
   validity = function(object) {
 
-    tmp <- try(
+    tmp <- object
+    tmp@constraints$CONSTRAINT <- NULL
+
+    recreated <- try(
       loadConstraints(
-        object@constraints,
-        object@pool,
-        object@item_attrib,
-        object@st_attrib
+        tmp@constraints,
+        tmp@pool,
+        tmp@item_attrib,
+        tmp@st_attrib
       ),
       silent = TRUE
     )
 
-    if (inherits(tmp, "try-error")) {
+    if (inherits(recreated, "try-error")) {
 
-      err <- as.character(tmp)
+      err <- as.character(recreated)
 
     } else {
 
+      recreated@constraints$CONSTRAINT <- NULL
+
       err <- c()
 
-      for (x in slotNames(tmp)) {
-        slot_recreated <- slot(tmp, x)
-        slot_origin    <- slot(object, x)
+      for (x in slotNames(recreated)) {
+        slot_recreated <- slot(recreated, x)
+        slot_origin    <- slot(tmp      , x)
         if (inherits(slot_recreated, "integer")) {
           slot_recreated <- as.numeric(slot_recreated)
         }
@@ -643,6 +656,16 @@ setClass("constraints",
             sprintf("constraints: slot '%s' recreated from @constraints does not match @%s", x, x)
           )
         }
+      }
+
+      if (!identical(
+        recreated@constraints$CONSTRAINT_ID,
+        unique(recreated@constraints$CONSTRAINT_ID)
+      )) {
+        err <- c(
+          err,
+          sprintf("constraints: the 'CONSTRAINT_ID' column must have unique values")
+        )
       }
 
     }
@@ -760,13 +783,13 @@ loadConstraints <- function(object, pool, item_attrib, st_attrib = NULL, file = 
     id <- c(item_attrib@data[["ID"]], st_attrib@data[["STID"]])
     ns <- nrow(st_attrib@data)
     nv <- ni + ns
-    item_id_by_stimulus <- split(item_attrib@data[["ID"]], as.factor(item_attrib@data[["STID"]]))
+    item_id_by_stimulus    <- split(item_attrib@data[["ID"]], as.factor(item_attrib@data[["STID"]]))
     item_index_by_stimulus <- lapply(item_id_by_stimulus, function(x) which(item_attrib@data[["ID"]] %in% x))
-    item_index_by_stimulus <- lapply(st_attrib@data[["STID"]], function(x) item_index_by_stimulus[[x]])
+    item_index_by_stimulus <- item_index_by_stimulus[st_attrib@data[["STID"]]]
     if (any(item_attrib@data[["STID"]] %in% c("", " ", "N/A", "n/a"))) {
       item_attrib@data[["STID"]][item_attrib@data[["STID"]] %in% c("", " ", "N/A", "n/a")] <- NA
     }
-    stimulus_id_by_item <- item_attrib@data[["STID"]]
+    stimulus_id_by_item    <- item_attrib@data[["STID"]]
     stimulus_index_by_item <- sapply(stimulus_id_by_item, function(x) { if (!is.na(x)) { which(st_attrib@data[["STID"]] == x) } else { NA } } )
     if (any(toupper(constraints[["CONDITION"]]) %in% c("PER STIMULUS", "PER PASSAGE", "PER SET", "PER TESTLET"))) {
       common_stimulus_length <- TRUE
@@ -945,6 +968,7 @@ loadConstraints <- function(object, pool, item_attrib, st_attrib = NULL, file = 
 #'
 #' @export
 toggleConstraints <- function(object, on = NULL, off = NULL) {
+
   nc <- nrow(object@constraints)
   if (length(intersect(on, off)) > 0) {
     stop("toggleConstraints: 'on' and 'off' must have no values in common")
@@ -982,7 +1006,7 @@ toggleConstraints <- function(object, on = NULL, off = NULL) {
       mat   <- rbind(mat, object@list_constraints[[i]]@mat)
       dir   <- c(dir, object@list_constraints[[i]]@dir)
       rhs   <- c(rhs, object@list_constraints[[i]]@rhs)
-      index <- c(index, rep(object@constraints[["CONSTRAINT"]][i], object@list_constraints[[i]]@nc))
+      index <- c(index, rep(object@list_constraints[[i]]@constraint, object@list_constraints[[i]]@nc))
     }
   }
 
@@ -992,28 +1016,6 @@ toggleConstraints <- function(object, on = NULL, off = NULL) {
   object@rhs   <- rhs
 
   return(object)
-}
-
-#' (deprecated) Update constraints
-#'
-#' Use \code{\link{toggleConstraints}} instead.
-#'
-#' @param object a \code{\linkS4class{constraints}} object from \code{\link{loadConstraints}}.
-#' @param on constraint indices to mark as active.
-#' @param off constraint indices to mark as inactive.
-#'
-#' @return \code{\link{updateConstraints}} returns the updated \code{\linkS4class{constraints}} object.
-#'
-#' @examples
-#' \dontrun{
-#' constraints_science2 <- updateConstraints(constraints_science, off = 32:36)
-#' constraints_science3 <- updateConstraints(constraints_science, on = 32:36)
-#' }
-#' @export
-updateConstraints <- function(object, on = NULL, off = NULL) {
-  .Deprecated("toggleConstraints", msg = "updateConstraints() is deprecated. Use toggleConstraints() instead.")
-  o <- toggleConstraints(object, on, off)
-  return(o)
 }
 
 #' Build constraints (shortcut to other loading functions)

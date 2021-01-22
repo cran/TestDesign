@@ -158,6 +158,7 @@ setMethod("print", "config_Shadow", function(x) {
   cat("    info_type                 :", x@item_selection$info_type, "\n")
   cat("    initial_theta             :", x@item_selection$initial_theta, "\n")
   cat("    fixed_theta               :", x@item_selection$fixed_theta, "\n")
+  cat("    target_value              :", x@item_selection$target_value, "\n")
   cat("\n")
   cat("  content_balancing \n")
   cat("    method                    :", x@content_balancing$method, "\n")
@@ -168,6 +169,7 @@ setMethod("print", "config_Shadow", function(x) {
   cat("    time_limit                :", x@MIP$time_limit, "\n")
   cat("    gap_limit                 :", x@MIP$gap_limit, "\n")
   cat("    gap_limit_abs             :", x@MIP$gap_limit_abs, "\n")
+  cat("    obj_tol                   :", x@MIP$obj_tol, "\n")
   cat("    retry                     :", x@MIP$retry, "\n")
   cat("\n")
   cat("  MCMC \n")
@@ -236,6 +238,8 @@ setMethod("print", "config_Shadow", function(x) {
   cat("    max_iter                  :", x@interim_theta$max_iter, "\n")
   cat("    crit                      :", x@interim_theta$crit, "\n")
   cat("    max_change                :", x@interim_theta$max_change, "\n")
+  cat("    use_step_size             :", x@interim_theta$use_step_size, "\n")
+  cat("    step_size                 :", x@interim_theta$step_size, "\n")
   cat("    do_Fisher                 :", x@interim_theta$do_Fisher, "\n")
   cat("    fence_slope               :", x@interim_theta$fence_slope, "\n")
   cat("    fence_difficulty          :", x@interim_theta$fence_difficulty, "\n")
@@ -266,6 +270,8 @@ setMethod("print", "config_Shadow", function(x) {
   cat("    max_iter                  :", x@final_theta$max_iter, "\n")
   cat("    crit                      :", x@final_theta$crit, "\n")
   cat("    max_change                :", x@final_theta$max_change, "\n")
+  cat("    use_step_size             :", x@final_theta$use_step_size, "\n")
+  cat("    step_size                 :", x@final_theta$step_size, "\n")
   cat("    do_Fisher                 :", x@final_theta$do_Fisher, "\n")
   cat("    fence_slope               :", x@final_theta$fence_slope, "\n")
   cat("    fence_difficulty          :", x@final_theta$fence_difficulty, "\n")
@@ -398,8 +404,10 @@ setMethod("print", "summary_output_Static", function(x, digits = 3) {
       x@score[i]
     ))
   }
-  cat("\n")
-  print(x@achieved, digits = digits)
+  if (!is.null(x@achieved)) {
+    cat("\n")
+    print(x@achieved, digits = digits)
+  }
   return(invisible(x))
 })
 
@@ -416,7 +424,10 @@ setMethod("print", "summary_output_Shadow_all", function(x, digits = 3) {
     cat(sprintf("           bias : % 2.6f\n", x@bias))
     cat(sprintf("           corr : % 2.6f\n", x@corr))
   }
-  cat(sprintf("     Average SE : % 2.6f\n\n", x@average_se))
-  print(x@achieved, digits = digits)
+  cat(sprintf("     Average SE : % 2.6f\n", x@average_se))
+  if (!is.null(x@achieved)) {
+    cat("\n")
+    print(x@achieved, digits = digits)
+  }
   return(invisible(x))
 })
