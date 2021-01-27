@@ -1,4 +1,4 @@
-35283260879ebb743a966650f8eda1a7 *DESCRIPTION
+c108be0c1eedd4fd335a13df4c8fa9c4 *DESCRIPTION
 390475cef18d76315fe1f6ad77114703 *NAMESPACE
 66e2710295a09b415092719a450e200c *NEWS.md
 b8e5331f55c8e67b7879abafd0458132 *R/RcppExports.R
@@ -19,7 +19,7 @@ d48168108b09f159a7dc82920ad0ef2a *R/item_pool_cluster_operators.R
 89dea7bfed2b7b84cae74aaa685faa19 *R/item_pool_operators.R
 8b4a4b17366665cffb41e9d4c9498139 *R/loading_functions.R
 ae5dbc8ae5913a0f3ceda36e7519c469 *R/other_functions.R
-46ec816be523c3eb0f84034d754aa53c *R/plot_functions.R
+0731083b0512de073e77cd29edee53b4 *R/plot_functions.R
 adb63b3ae476675df4189bfd4d35cf5d *R/print_functions.R
 392ddc3e2fe9cc5efc7cc316dad95505 *R/runshiny.R
 d3750bd13792e6ba6f60e11f52a15a04 *R/shadow_class.R
@@ -148,7 +148,7 @@ e11d465d4a54737e0278400e8c7b6b28 *man/mlef-methods.Rd
 e8d1d8749f4486a98474ad7f827a1263 *man/output_Shadow_all-class.Rd
 f2aa5e96cf49a84c9d19cb8512db4638 *man/output_Static-class.Rd
 b702bce164c349159f6fd134fe2a19ac *man/p_item.Rd
-1080455088be949d35ce8500b238735d *man/plot-methods.Rd
+191308740ab08b2fb63582b7806b6b79 *man/plot-methods.Rd
 2c377f57f8cfd807911aeef7c40342b9 *man/plotExposure-methods.Rd
 75c1ec64fc1beb5cc66ff357f56368e5 *man/plotInfo-methods.Rd
 b11e9ca88dd2af91e4e848b2aba33d1e *man/print-methods.Rd
@@ -179,7 +179,7 @@ ac53f7653c9482f6b277c80fc5fd74f1 *src/item_functions.cpp
 11feb5fb09f7f65665af2ebcde785f01 *src/theta_functions.cpp
 2e080b7d40cb70d80697503b985723df *src/theta_functions.h
 492e11b75bb2f88c6d30fb3ff7bd87e3 *tests/testthat.R
-dc46076dc076475b9fb2a39fb2dac375 *tests/testthat/test-gfi.R
+e476d78095ad5574736bc6615d4e4d4a *tests/testthat/test-gfi.R
 17c4fbebd28386b3a9f52275a88df130 *tests/testthat/test-refresh-methods.R
 6e6c752f42b1f01784b79e973d09a599 *tests/testthat/test-selection-methods.R
 472deb1a36cd12c67c3fdfeb3efa24ce *tests/testthat/test-theta-methods.R
@@ -192,7 +192,7 @@ a8e17c0d408736f86d469c9a087e03b6 *tests/testthat/test_calcProb_typecast.R
 0b2290a5faa60dcd31130808db34478d *tests/testthat/test_constraints.R
 355cad0b9ba22683a86e3e82c45661e9 *tests/testthat/test_deprecated.R
 70617330fcbc6b71165a02bd4a237845 *tests/testthat/test_examples.R
-a7d669dae4779ceb5df547bc58b5b7ab *tests/testthat/test_excluding.R
+53119f663338c3978d6f641918de438e *tests/testthat/test_excluding.R
 20b4f5244e040ee44fce3bbc563b805e *tests/testthat/test_exposure_methods.R
 8e487fb691a38e4b8fcd620d61e5cfa2 *tests/testthat/test_static.R
 acf20d77406505f4080d9d93580f5a9d *vignettes/constraints.Rmd
