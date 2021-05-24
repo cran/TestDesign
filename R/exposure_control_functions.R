@@ -57,7 +57,7 @@ initializeExposureRecord <- function(exposure_control, exposure_constants, const
 
   o$n_jk  <- numeric(n_segment)
   if (toupper(exposure_control$method) == "ELIGIBILITY") {
-    o$p_jk  <- numeric(n_segment)
+    o$f_jk  <- numeric(n_segment)
   }
 
   if (exposure_constants$fading_factor != 1) {
@@ -66,7 +66,7 @@ initializeExposureRecord <- function(exposure_control, exposure_constants, const
 
   o$a_ijk <- matrix(0, n_segment, ni)
   o$r_ijk <- matrix(0, n_segment, ni)
-  o$pe_i  <- matrix(1, n_segment, ni)
+  o$p_e_i  <- matrix(1, n_segment, ni)
   if (exposure_constants$fading_factor != 1) {
     o$a_ijk_nofade <- o$a_ijk
     o$r_ijk_nofade <- o$r_ijk
@@ -92,7 +92,7 @@ initializeExposureRecord <- function(exposure_control, exposure_constants, const
 getInitialEligibilityStats <- function(o, initial_stats, constants) {
 
   o$n_jk  <- initial_stats$n_jk
-  o$p_jk  <- initial_stats$p_jk
+  o$f_jk  <- initial_stats$f_jk
   o$a_ijk <- initial_stats$a_ijk
   o$r_ijk <- initial_stats$r_ijk
 

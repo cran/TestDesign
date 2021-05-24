@@ -10,10 +10,10 @@ flagIneligible <- function(exposure_record, exposure_constants, constants, item_
   # Randomly flag items in each segment to be ineligible
 
   ni       <- constants$ni
-  pe_i     <- exposure_record$pe_i
+  p_e_i     <- exposure_record$p_e_i
   o$i      <- matrix(0, n_segment, ni)
   p_random <- matrix(runif(n_segment * ni), n_segment, ni)
-  o$i[p_random >= pe_i] <- 1
+  o$i[p_random >= p_e_i] <- 1
 
   if (!constants$set_based) {
     return(o)
@@ -22,10 +22,10 @@ flagIneligible <- function(exposure_record, exposure_constants, constants, item_
   # Randomly flag stimuli in each segment to be ineligible
 
   ns       <- constants$ns
-  pe_s     <- exposure_record$pe_s
+  p_e_s     <- exposure_record$p_e_s
   o$s      <- matrix(0, n_segment, ns)
   p_random <- matrix(runif(n_segment * ns), n_segment, ns)
-  o$s[p_random >= pe_s] <- 1
+  o$s[p_random >= p_e_s] <- 1
 
   for (k in 1:exposure_constants$n_segment) {
     for (s in which(o$s[k, ] == 1)) {
@@ -106,8 +106,8 @@ applyFading <- function(o, segments_to_apply, exposure_constants, constants) {
 
   o$n_jk[segments_to_apply]    <- fading_factor * o$n_jk[segments_to_apply]
 
-  if (!is.null(o$p_jk)) {
-    o$p_jk[segments_to_apply]  <- fading_factor * o$p_jk[segments_to_apply]
+  if (!is.null(o$f_jk)) {
+    o$f_jk[segments_to_apply]  <- fading_factor * o$f_jk[segments_to_apply]
   }
 
   o$a_ijk[segments_to_apply, ] <- fading_factor * o$a_ijk[segments_to_apply, ]
@@ -136,25 +136,31 @@ getEligibleFlagInSegment <- function(ineligible_flag, segment, constants) {
 }
 
 #' @noRd
-applyIncrement <- function(o, segments_to_apply, segment_prob, theta_is_feasible, eligible_flag, x, exposure_constants, constants) {
+incrementExamineeCount <- function(o, segments_to_apply, segment_prob, theta_is_feasible, exposure_constants) {
 
-  fading_factor <- exposure_constants$fading_factor
-
-  o$n_jk[segments_to_apply] <- o$n_jk[segments_to_apply] + segment_prob
-  if (fading_factor != 1) {
+  o$n_jk[segments_to_apply] <-
+  o$n_jk[segments_to_apply] + segment_prob
+  if (exposure_constants$fading_factor != 1) {
     o$n_jk_nofade[segments_to_apply] <-
     o$n_jk_nofade[segments_to_apply] + segment_prob
   }
   if (theta_is_feasible) {
-    o$p_jk[segments_to_apply] <-
-    o$p_jk[segments_to_apply] + segment_prob
+    o$f_jk[segments_to_apply] <-
+    o$f_jk[segments_to_apply] + segment_prob
   }
+
+  return(o)
+
+}
+
+#' @noRd
+incrementAdministrationCount <- function(o, segments_to_apply, segment_prob, eligible_flag, x, exposure_constants, constants) {
 
   administered_i <- x@administered_item_index
 
   o$a_ijk[segments_to_apply, administered_i] <-
   o$a_ijk[segments_to_apply, administered_i] + segment_prob
-  if (fading_factor != 1) {
+  if (exposure_constants$fading_factor != 1) {
     o$a_ijk_nofade[segments_to_apply, administered_i] <-
     o$a_ijk_nofade[segments_to_apply, administered_i] + segment_prob
   }
@@ -171,7 +177,7 @@ applyIncrement <- function(o, segments_to_apply, segment_prob, theta_is_feasible
 
   o$a_sjk[segments_to_apply, administered_s] <-
   o$a_sjk[segments_to_apply, administered_s] + segment_prob
-  if (fading_factor != 1) {
+  if (exposure_constants$fading_factor != 1) {
     o$a_sjk_nofade[segments_to_apply, administered_s] <-
     o$a_sjk_nofade[segments_to_apply, administered_s] + segment_prob
   }
@@ -186,17 +192,17 @@ applyIncrement <- function(o, segments_to_apply, segment_prob, theta_is_feasible
 
 
 #' @noRd
-applyClip <- function(o, constants) {
+clipEligibilityRates <- function(o, constants) {
 
-  o$pe_i[is.na(o$pe_i) | o$alpha_ijk == 0] <- 1
-  o$pe_i[o$pe_i > 1] <- 1
+  o$p_e_i[is.na(o$p_e_i) | o$a_ijk == 0] <- 1
+  o$p_e_i[o$p_e_i > 1] <- 1
 
   if (!constants$set_based) {
     return(o)
   }
 
-  o$pe_s[is.na(o$pe_s) | o$alpha_sjk == 0] <- 1
-  o$pe_s[o$pe_s > 1] <- 1
+  o$p_e_s[is.na(o$p_e_s) | o$a_sjk == 0] <- 1
+  o$p_e_s[o$p_e_s > 1] <- 1
 
   return(o)
 
@@ -216,7 +222,7 @@ getEligibleFlag <- function(ineligible_flag, constants, force_true) {
 }
 
 #' @noRd
-applyIncrementVisitedSegments <- function(o, segment_prob, segment_visited, ineligible_flag_in_segment, x, exposure_constants, constants) {
+incrementAdministrationCountForVisitedSegments <- function(o, segment_prob, segment_visited, ineligible_flag_in_segment, x, exposure_constants, constants) {
 
   segments_to_apply <- getSegmentsToApply(exposure_constants$n_segment, segment_visited)
 
@@ -253,36 +259,38 @@ applyIncrementVisitedSegments <- function(o, segment_prob, segment_visited, inel
 }
 
 #' @noRd
-applyAcceleration <- function(o, exposure_constants, constants) {
+updateEligibilityRates <- function(o, exposure_constants, constants) {
 
   max_exposure_rate <- exposure_constants$max_exposure_rate
   acc_factor        <- exposure_constants$acceleration_factor
   n_segment         <- exposure_constants$n_segment
 
   ni <- constants$ni
-  # p_jk is only avalilable in ELIGIBILITY method
-  if (is.null(o$p_jk)) {
+  # f_jk: examinees who took a feasible test
+  # f_jk: only available in ELIGIBILITY method
+  # nf_ijk: correction term for administering infeasible tests
+  if (is.null(o$f_jk)) {
     nf_ijk <- matrix(1              , n_segment, ni)
   } else {
-    nf_ijk <- matrix(o$n_jk / o$p_jk, n_segment, ni)
+    nf_ijk <- matrix(o$n_jk / o$f_jk, n_segment, ni)
   }
 
+  p_a_ijk <- o$a_ijk / matrix(o$n_jk, n_segment, ni)
+  p_r_ijk <- o$r_ijk / matrix(o$n_jk, n_segment, ni)
+  p_a_ijk[is.na(p_a_ijk)] <- 0
+  p_r_ijk[is.na(p_r_ijk)] <- 1
   if (acc_factor > 1) {
-    p_a_ijk <- o$a_ijk / matrix(o$n_jk, n_segment, ni)
-    p_r_ijk <- o$r_ijk / matrix(o$n_jk, n_segment, ni)
-    p_a_ijk[is.na(p_a_ijk)] <- 0
-    p_r_ijk[is.na(p_r_ijk)] <- 1
     idx <- p_a_ijk > max_exposure_rate
     for (k in 1:n_segment) {
-      o$pe_i[k,  idx[k, ]] <-
+      o$p_e_i[k,  idx[k, ]] <-
         1 - nf_ijk[k,  idx[k, ]] +
-        (max_exposure_rate[k] / p_a_ijk[k, idx[k, ]]) ** acc_factor * nf_ijk[k, idx[k, ]] * p_r_ijk[k, idx[k, ]]
-      o$pe_i[k, !idx[k, ]] <-
+        (max_exposure_rate[k] / p_a_ijk[k, idx[k, ]]) ** acc_factor * p_r_ijk[k, idx[k, ]] * nf_ijk[k, idx[k, ]]
+      o$p_e_i[k, !idx[k, ]] <-
         1 - nf_ijk[k, !idx[k, ]] +
-        max_exposure_rate[k] * nf_ijk[k, !idx[k, ]] * o$r_ijk[k, !idx[k, ]] / o$a_ijk[k, !idx[k, ]]
+        (max_exposure_rate[k] / p_a_ijk[k, !idx[k, ]]) * p_r_ijk[k, !idx[k, ]] * nf_ijk[k, !idx[k, ]]
     }
   } else {
-    o$pe_i <- 1 - nf_ijk + max_exposure_rate * nf_ijk * o$r_ijk / o$a_ijk
+    o$p_e_i <- 1 - nf_ijk + (max_exposure_rate / p_a_ijk * p_r_ijk * nf_ijk)
   }
 
   if (!constants$set_based) {
@@ -290,29 +298,31 @@ applyAcceleration <- function(o, exposure_constants, constants) {
   }
 
   ns <- constants$ns
-  # p_jk is only avalilable in ELIGIBILITY method
-  if (is.null(o$p_jk)) {
+  # f_jk: examinees who took a feasible test
+  # f_jk: only available in ELIGIBILITY method
+  # nf_ijk: correction term for administering infeasible tests
+  if (is.null(o$f_jk)) {
     nf_sjk <- matrix(1              , n_segment, ns)
   } else {
-    nf_sjk <- matrix(o$n_jk / o$p_jk, n_segment, ns)
+    nf_sjk <- matrix(o$n_jk / o$f_jk, n_segment, ns)
   }
 
+  p_a_sjk <- o$a_sjk / matrix(o$n_jk, n_segment, ns)
+  p_r_sjk <- o$r_sjk / matrix(o$n_jk, n_segment, ns)
+  p_a_sjk[is.na(p_a_sjk)] <- 0
+  p_r_sjk[is.na(p_r_sjk)] <- 1
   if (acc_factor > 1) {
-    p_a_sjk <- o$a_sjk / matrix(o$n_jk, n_segment, ns)
-    p_r_sjk <- o$r_sjk / matrix(o$n_jk, n_segment, ns)
-    p_a_sjk[is.na(p_a_sjk)] <- 0
-    p_r_sjk[is.na(p_r_sjk)] <- 1
     idx <- p_a_sjk > max_exposure_rate
     for (k in 1:n_segment) {
-      o$pe_s[k,  idx[k, ]] <-
+      o$p_e_s[k,  idx[k, ]] <-
         1 - nf_sjk[k,  idx[k, ]] +
-        (max_exposure_rate[k] / p_a_sjk[k, idx[k, ]]) ** acc_factor * nf_sjk[k, idx[k, ]] * p_r_sjk[k, idx[k, ]]
-      o$pe_s[k, !idx[k, ]] <-
+        (max_exposure_rate[k] / p_a_sjk[k, idx[k, ]]) ** acc_factor * p_r_sjk[k, idx[k, ]] * nf_sjk[k, idx[k, ]]
+      o$p_e_s[k, !idx[k, ]] <-
         1 - nf_sjk[k, !idx[k, ]] +
-        max_exposure_rate[k] * nf_sjk[k, !idx[k, ]] * o$r_sjk[k, !idx[k, ]] / o$a_sjk[k, !idx[k, ]]
+        (max_exposure_rate[k] / p_a_sjk[k, !idx[k, ]]) * p_r_sjk[k, !idx[k, ]] * nf_sjk[k, !idx[k, ]]
     }
   } else {
-    o$pe_s <- 1 - nf_sjk + max_exposure_rate * nf_sjk * o$r_sjk / o$a_sjk
+    o$p_e_s <- 1 - nf_sjk + (max_exposure_rate / p_a_sjk * p_r_sjk * nf_sjk)
   }
 
   return(o)
