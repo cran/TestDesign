@@ -341,10 +341,11 @@ setMethod(
       min_theta <- theta_range[1]
       max_theta <- theta_range[2]
 
-      old_mar <- par()$mar
+      old_mar   <- par()$mar
+      old_mfrow <- par()$mfrow
       on.exit({
         close_dev <- ifelse(dev.cur() == 1, TRUE, FALSE)
-        par(mar = old_mar)
+        par(mar = old_mar, mfrow = old_mfrow)
         if (close_dev) {
           dev.off()
         }
@@ -368,9 +369,9 @@ setMethod(
         lines(c(i - 0.25, i + 0.25), c(ci_lower, ci_lower), col = "purple4")
         lines(c(i - 0.25, i + 0.25), c(ci_upper, ci_upper), col = "purple4")
       }
-      lines(1:n_items, x@interim_theta_est, lty = 3, col = "blue", lwd = 1.5)
-      points(1:n_items, x@interim_theta_est, pch = 16, cex = 2.5, col = "blue")
-      points(1:n_items, x@interim_theta_est, pch = 1, cex = 2.5, col = "purple4")
+      lines(0:n_items, c(x@initial_theta_est, x@interim_theta_est), lty = 3, col = "blue", lwd = 1.5)
+      points(0:n_items, c(x@initial_theta_est, x@interim_theta_est), pch = 16, cex = 2.5, col = "blue")
+      points(0:n_items, c(x@initial_theta_est, x@interim_theta_est), pch = 1, cex = 2.5, col = "purple4")
       if (!is.null(x@true_theta)) {
         abline(h = x@true_theta, lty = 1, col = "red")
       }
@@ -412,6 +413,7 @@ setMethod(
 
       }
 
+      par(mar = old_mar, mfrow = old_mfrow)
       p <- recordPlot()
       dev.off()
       return(p)
@@ -643,6 +645,7 @@ setMethod(
 
       }
 
+      par(mar = old_mar, mfrow = old_mfrow)
       p <- recordPlot()
       dev.off()
       return(p)
@@ -734,12 +737,16 @@ setMethod(
         legend_col   <- c(legend_col, "black")
 
         if (position > 1) {
-
           abline(v = o@interim_theta_est[position - 1], col = "black", lty = 2)
           legend_label <- c(legend_label, sprintf("Interim @ %s = %.3f", position - 1, o@interim_theta_est[position - 1]))
           legend_lty   <- c(legend_lty, 2)
           legend_col   <- c(legend_col, "black")
-
+        }
+        if (position == 1) {
+          abline(v = o@initial_theta_est, col = "black", lty = 2)
+          legend_label <- c(legend_label, sprintf("Initial theta = %.3f", o@initial_theta_est))
+          legend_lty   <- c(legend_lty, 2)
+          legend_col   <- c(legend_col, "black")
         }
       }
 
@@ -920,6 +927,7 @@ setMethod(
       mtext(text = "Item", side = 1, line = 0, outer = T)
       mtext(text = "Exposure Rate", side = 2, line = 0, outer = T)
 
+      par(oma = old_oma, mar = old_mar)
       p <- recordPlot()
       dev.off()
 

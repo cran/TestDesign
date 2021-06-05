@@ -10,13 +10,13 @@ NULL
 #' @param xdata a list containing extra constraints in MIP form, to force-include previously administered items.
 #' @param objective the information value for each item in the pool.
 #'
-#' @return A list containing the following entries:
+#' @return a list containing the following entries:
 #' \itemize{
-#'   \item{\code{MIP}} A list containing the result from MIP solver.
-#'   \item{\code{status}} The MIP status value, indicating whether an optimal solution was found.
-#'   \item{\code{shadow_test}} The attributes of the selected items.
-#'   \item{\code{obj_value}} The objective value of the solution.
-#'   \item{\code{solve_time}} The elapsed time in running the solver.
+#'   \item{\code{MIP}} a list containing the result from MIP solver.
+#'   \item{\code{status}} the MIP status value, indicating whether an optimal solution was found.
+#'   \item{\code{shadow_test}} the attributes of the selected items.
+#'   \item{\code{obj_value}} the objective value of the solution.
+#'   \item{\code{solve_time}} the elapsed time in running the solver.
 #' }
 #'
 #' @references
@@ -414,5 +414,47 @@ validateSolver <- function(config, constraints) {
   }
 
   return(TRUE)
+
+}
+
+#' Test solver
+#'
+#' @param solver a solver package name. Accepts \code{lpSolve, Rsymphony, lpsymphony, gurobi, Rglpk}.
+#'
+#' @return empty string \code{""} if solver works. A string containing error messages otherwise.
+#'
+#' @docType methods
+#' @export
+testSolver <- function(solver) {
+
+  obj   <- seq(.1, .5, .1)
+  mat   <- matrix(
+    c(1, 1, 1, 1, 1,
+      0, 0, 0, 1, 0),
+    2, 5,
+    byrow = TRUE)
+  dir   <- rep("==", 2)
+  rhs   <- c(2, 0)
+  types <- "B"
+
+  solver <- toupper(solver)
+  o <- try(
+    runMIP(
+      solver,
+      obj, mat, dir, rhs,
+      TRUE, types,
+      verbosity = -2,
+      time_limit = 5,
+      gap_limit_abs = 0.05,
+      gap_limit = 0.05
+    ),
+    silent = TRUE
+  )
+
+  if (inherits(o, "try-error")) {
+    return(trimws(as.character(o)))
+  }
+
+  return("")
 
 }
