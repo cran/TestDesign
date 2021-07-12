@@ -561,6 +561,7 @@ setMethod(
 
     if (is.vector(resp)) {
       nj <- 1
+      resp <- matrix(resp, 1)
     } else if (is.matrix(resp)) {
       nj <- nrow(resp)
     } else if (is.data.frame(resp)) {
@@ -729,7 +730,7 @@ getInitialThetaPrior <- function(config_theta, prior_par, nj, j, posterior_const
 }
 
 #' @noRd
-estimateInitialTheta <- function(config_theta, initial_theta, prior_par, nj, j, posterior_constants) {
+parseInitialTheta <- function(config_theta, initial_theta, prior_par, nj, j, posterior_constants) {
 
   o <- list()
   theta_method <- toupper(config_theta$method)
@@ -782,7 +783,7 @@ isFirstSegmentValid <- function(first_segment, n_segment, position) {
 }
 
 #' @noRd
-estimateThetaEAP <- function(posterior, theta_grid) {
+computeEAPFromPosterior <- function(posterior, theta_grid) {
   o <- list()
   o$theta <- sum(posterior * theta_grid) / sum(posterior)
   o$se    <- sqrt(sum(posterior * (theta_grid - o$theta)^2) / sum(posterior))

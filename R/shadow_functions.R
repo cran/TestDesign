@@ -81,8 +81,8 @@ setMethod(
 #' @param exclude (optional) a list containing item names in \code{$i} and set names in \code{$s} to exclude from selection for each participant. The length of the list must be equal to the number of participants.
 #' @param include_items_for_estimation (optional) an examinee-wise list containing:
 #' \itemize{
-#'   \item{administered_item_pool} items to include in theta estimation as \code{\linkS4class{item_pool}} object.
-#'   \item{administered_item_resp} item responses to include in theta estimation.
+#'   \item{\code{administered_item_pool}} items to include in theta estimation as \code{\linkS4class{item_pool}} object.
+#'   \item{\code{administered_item_resp}} item responses to include in theta estimation.
 #' }
 #' @template force_solver_param
 #' @param session (optional) used to communicate with Shiny app \code{\link{TestDesign}}.
@@ -211,7 +211,7 @@ setMethod(
       o@set_based                   <- constants$set_based
       o@item_index_by_stimulus      <- constraints@item_index_by_stimulus
 
-      current_theta <- estimateInitialTheta(
+      current_theta <- parseInitialTheta(
         config@interim_theta, initial_theta, prior_par,
         constants$nj, j,
         posterior_constants)
@@ -403,14 +403,49 @@ setMethod(
 
         # Item position / simulee: update posterior
 
-        prob_resp <- all_data$test@prob[[o@administered_item_index[position]]][, o@administered_item_resp[position] + 1]
-        posterior_record <- updatePosterior(posterior_record, j, prob_resp)
+        prob_matrix_current_item <- all_data$test@prob[[o@administered_item_index[position]]]
+        prob_resp_current_item   <- prob_matrix_current_item[, o@administered_item_resp[position] + 1]
+        posterior_record <- updatePosterior(posterior_record, j, prob_resp_current_item)
+
+        # Item position / simulee: utilize supplied items if necessary
+
+        if (!is.null(include_items_for_estimation)) {
+
+          prob_matrix_supplied_items <- calcProb(
+            include_items_for_estimation[[j]]$administered_item_pool,
+            constants$theta_q
+          )
+
+          n_supplied_items <- include_items_for_estimation[[j]]$administered_item_pool@ni
+
+          prob_resp_supplied_items <- sapply(
+            1:n_supplied_items,
+            function(i) {
+              resp <- include_items_for_estimation[[j]]$administered_item_resp[i] + 1
+              prob_matrix_supplied_items[[i]][, resp]
+            }
+          )
+          prob_resp_supplied_items <- apply(prob_resp_supplied_items, 1, prod)
+
+          augmented_posterior_record <- updatePosterior(posterior_record, j, prob_resp_supplied_items)
+          augmented_pool             <- augmented_pool
+          augmented_item_index       <- c(augment_item_index, o@administered_item_index[1:position])
+          augmented_item_resp        <- c(augment_item_resp,  o@administered_item_resp[1:position])
+
+        } else {
+
+          augmented_posterior_record <- posterior_record
+          augmented_pool             <- pool
+          augmented_item_index       <- o@administered_item_index[1:position]
+          augmented_item_resp        <- o@administered_item_resp[1:position]
+
+        }
 
         # Item position / simulee: estimate theta
 
         if (toupper(config@interim_theta$method) == "EAP") {
 
-          interim_EAP <- estimateThetaEAP(posterior_record$posterior[j, ], constants$theta_q)
+          interim_EAP <- computeEAPFromPosterior(augmented_posterior_record$posterior[j, ], constants$theta_q)
           interim_EAP <- applyShrinkageCorrection(interim_EAP, config@interim_theta)
 
           o@interim_theta_est[position] <- interim_EAP$theta
@@ -418,94 +453,52 @@ setMethod(
 
         } else if (toupper(config@interim_theta$method) == "MLE") {
 
-          if (!is.null(include_items_for_estimation)) {
-
-            interim_EAP <- estimateThetaEAP(posterior_record$posterior[j, ], constants$theta_q)
-
-            interim_MLE <- mle(augmented_pool,
-              select        = c(augment_item_index, o@administered_item_index[1:position]),
-              resp          = c(augment_item_resp,  o@administered_item_resp[1:position]),
-              start_theta   = interim_EAP$theta,
-              max_iter      = config@interim_theta$max_iter,
-              crit          = config@interim_theta$crit,
-              theta_range   = config@interim_theta$bound_ML,
-              truncate      = config@interim_theta$truncate_ML,
-              max_change    = config@interim_theta$max_change,
-              use_step_size = config@interim_theta$use_step_size,
-              step_size     = config@interim_theta$step_size,
-              do_Fisher     = config@interim_theta$do_Fisher
-            )
-
-          } else {
-
-            interim_EAP <- estimateThetaEAP(posterior_record$posterior[j, ], constants$theta_q)
-
-            interim_MLE <- mle(pool,
-              select        = o@administered_item_index[1:position],
-              resp          = o@administered_item_resp[1:position],
-              start_theta   = interim_EAP$theta,
-              max_iter      = config@interim_theta$max_iter,
-              crit          = config@interim_theta$crit,
-              theta_range   = config@interim_theta$bound_ML,
-              truncate      = config@interim_theta$truncate_ML,
-              max_change    = config@interim_theta$max_change,
-              use_step_size = config@interim_theta$use_step_size,
-              step_size     = config@interim_theta$step_size,
-              do_Fisher     = config@interim_theta$do_Fisher
-            )
-
-          }
+          interim_EAP <- computeEAPFromPosterior(augmented_posterior_record$posterior[j, ], constants$theta_q)
+          interim_MLE <- mle(augmented_pool,
+            select        = augmented_item_index,
+            resp          = augmented_item_resp,
+            start_theta   = interim_EAP$theta,
+            max_iter      = config@interim_theta$max_iter,
+            crit          = config@interim_theta$crit,
+            theta_range   = config@interim_theta$bound_ML,
+            truncate      = config@interim_theta$truncate_ML,
+            max_change    = config@interim_theta$max_change,
+            use_step_size = config@interim_theta$use_step_size,
+            step_size     = config@interim_theta$step_size,
+            do_Fisher     = config@interim_theta$do_Fisher
+          )
 
           o@interim_theta_est[position] <- interim_MLE$th
           o@interim_se_est[position]    <- interim_MLE$se
 
         } else if (toupper(config@interim_theta$method) == "MLEF") {
 
-          if (!is.null(include_items_for_estimation)) {
-
-            interim_EAP <- estimateThetaEAP(posterior_record$posterior[j, ], constants$theta_q)
-
-            interim_MLEF <- mlef(augmented_pool,
-              select           = c(augment_item_index, o@administered_item_index[1:position]),
-              resp             = c(augment_item_resp,  o@administered_item_resp[1:position]),
-              fence_slope      = config@interim_theta$fence_slope,
-              fence_difficulty = config@interim_theta$fence_difficulty,
-              start_theta      = interim_EAP$theta,
-              max_iter         = config@interim_theta$max_iter,
-              crit             = config@interim_theta$crit,
-              theta_range      = config@interim_theta$bound_ML,
-              truncate         = config@interim_theta$truncate_ML,
-              max_change       = config@interim_theta$max_change,
-              use_step_size    = config@interim_theta$use_step_size,
-              step_size        = config@interim_theta$step_size,
-              do_Fisher        = config@interim_theta$do_Fisher
-            )
-
-          } else {
-
-            interim_EAP <- estimateThetaEAP(posterior_record$posterior[j, ], constants$theta_q)
-            interim_MLEF <- mlef(pool,
-              select           = o@administered_item_index[1:position],
-              resp             = o@administered_item_resp[1:position],
-              fence_slope      = config@interim_theta$fence_slope,
-              fence_difficulty = config@interim_theta$fence_difficulty,
-              start_theta      = interim_EAP$theta,
-              max_iter         = config@interim_theta$max_iter,
-              crit             = config@interim_theta$crit,
-              theta_range      = config@interim_theta$bound_ML,
-              truncate         = config@interim_theta$truncate_ML,
-              max_change       = config@interim_theta$max_change,
-              use_step_size    = config@interim_theta$use_step_size,
-              step_size        = config@interim_theta$step_size,
-              do_Fisher        = config@interim_theta$do_Fisher
-            )
-
-          }
+          interim_EAP <- computeEAPFromPosterior(augmented_posterior_record$posterior[j, ], constants$theta_q)
+          interim_MLEF <- mlef(augmented_pool,
+            select           = augmented_item_index,
+            resp             = augmented_item_resp,
+            fence_slope      = config@interim_theta$fence_slope,
+            fence_difficulty = config@interim_theta$fence_difficulty,
+            start_theta      = interim_EAP$theta,
+            max_iter         = config@interim_theta$max_iter,
+            crit             = config@interim_theta$crit,
+            theta_range      = config@interim_theta$bound_ML,
+            truncate         = config@interim_theta$truncate_ML,
+            max_change       = config@interim_theta$max_change,
+            use_step_size    = config@interim_theta$use_step_size,
+            step_size        = config@interim_theta$step_size,
+            do_Fisher        = config@interim_theta$do_Fisher
+          )
 
           o@interim_theta_est[position] <- interim_MLEF$th
           o@interim_se_est[position]    <- interim_MLEF$se
 
         } else if (toupper(config@interim_theta$method) == "EB") {
+
+          # TODO: needs to work with include_items_for_estimation
+          if (!is.null(include_items_for_estimation)) {
+            stop("EB with include_items_for_estimation is not available")
+          }
 
           current_item <- o@administered_item_index[position]
 
@@ -523,6 +516,11 @@ setMethod(
           o@interim_se_est[position]    <- sd(interim_EB)
 
         } else if (toupper(config@interim_theta$method) == "FB") {
+
+          # TODO: needs to work with include_items_for_estimation
+          if (!is.null(include_items_for_estimation)) {
+            stop("FB with include_items_for_estimation is not available")
+          }
 
           current_item <- o@administered_item_index[position]
 
@@ -545,14 +543,6 @@ setMethod(
         current_theta$posterior_sample <- o@posterior_sample
         current_theta$theta            <- o@interim_theta_est[position]
         current_theta$se               <- o@interim_se_est[position]
-
-        # Item position / simulee: trigger shadow test refresh if theta change is sufficient
-
-        if (toupper(config@refresh_policy$method) == "THRESHOLD") {
-          if ((abs(theta_change) > config@refresh_policy$threshold) && (position < constants$test_length)) {
-            refresh_shadow[position + 1] <- TRUE
-          }
-        }
 
         # Item position / simulee: prepare for the next item position
 
@@ -587,7 +577,7 @@ setMethod(
         )[1, ]
 
         o@posterior       <- o@likelihood * final_prior
-        final_EAP <- estimateThetaEAP(o@posterior, constants$theta_q)
+        final_EAP <- computeEAPFromPosterior(o@posterior, constants$theta_q)
         final_EAP <- applyShrinkageCorrection(final_EAP, config@final_theta)
         o@final_theta_est <- final_EAP$theta
         o@final_se_est    <- final_EAP$se
@@ -1192,112 +1182,3 @@ iparPosteriorSample <- function(pool, n_sample = 500) {
   }
   return(ipar_list)
 }
-
-#' Save or print audit trails
-#'
-#' Save or print audit trails for all simulees.
-#'
-#' @param object_list A list of output objects generated from \code{STA}.
-#' @param file An optional file name as a character string to save the output.
-#'
-#' @return None
-saveOutput <- function(object_list, file = NULL) {
-  nj <- length(object_list)
-  for (j in 1:nj) {
-    object <- object_list[[j]]
-    output <- data.frame(
-      simulee = object@simulee_id,
-      true_theta = object@true_theta,
-      true_theta_segment = object@true_theta_segment,
-      stage = 1:length(object@administered_item_index),
-      stimulus_index = ifelse(is.nan(object@administered_stimulus_index), rep(NA, length(object@administered_item_index)), object@administered_stimulus_index),
-      item_index = object@administered_item_index,
-      item_resp = object@administered_item_resp,
-      interim_theta = object@interim_theta_est,
-      interim_se = object@interim_se_est,
-      interim_theta_segment = object@theta_segment_index
-    )
-    if (!is.null(file)) {
-      write.table(output, file = file, append = j > 1, row.names = FALSE, col.names = j == 1, sep = ",")
-    } else {
-      print(output)
-    }
-  }
-}
-
-#' (deprecated) Plot item exposure rates
-#'
-#' (deprecated) Use \code{\link[TestDesign:plot-methods]{plot}} with \code{type = 'exposure'} instead.
-#'
-#' @param object an output object generated by \code{\link{Shadow}}.
-#' @param max_rate the target exposure rate.
-#' @param theta_segment the type of theta to use to create segments. Accepts \code{"estimated"} or \code{"true"}. (default = \code{"estimated"})
-#' @param color Color of item-wise exposure rates.
-#' @param color_final Color of item-wise exposure rates, only counting the items while in the final theta segment as exposed.
-#' @param file_pdf If supplied a filename, save as a PDF file.
-#' @param ... Additional options to be passed on to \code{pdf()}.
-#'
-#' @examples
-#' \dontrun{
-#' true_theta <- runif(10, min = -3.5, max = 3.5)
-#' resp_science <- simResp(itempool_science, true_theta)
-#' constraints_science2 <- updateConstraints(constraints_science, off = c(14:20, 32:36))
-#' config_science <- createShadowTestConfig(
-#'   MIP = list(solver = "lpSolve"),
-#'   exposure_control = list(method = "ELIGIBILITY")
-#' )
-#' solution <- Shadow(config_science, constraints_science2, true_theta, data = resp_science)
-#' p <- plotExposure(solution)
-#' }
-#' @docType methods
-#' @rdname plotExposure-methods
-#' @export
-setGeneric(
-  name = "plotExposure",
-  def = function(object, max_rate = 0.25, theta_segment = "Estimated", color = "blue", color_final = "blue", file_pdf = NULL, ...) {
-    standardGeneric("plotExposure")
-  }
-)
-
-#' @docType methods
-#' @rdname plotExposure-methods
-#' @export
-setMethod(
-  f = "plotExposure",
-  signature = "list",
-  definition = function(object, max_rate = 0.25, theta_segment = "estimated", color = "blue", color_final = "blue", file_pdf = NULL, ...) {
-    .Deprecated("plot", msg = "plotExposure() is deprecated. Use plot(type = 'exposure') instead.")
-    message("Consider converting the object to 'output_Shadow_all' class.\n")
-    new_object <- new("output_Shadow_all")
-    for (n in names(object)) {
-      slot(new_object, n) <- object[[n]]
-    }
-    p <- plot(new_object,
-      type = "exposure",
-      theta_segment = theta_segment,
-      color = color,
-      color_final = color_final,
-      ...
-    )
-    return(p)
-  }
-)
-
-#' @docType methods
-#' @rdname plotExposure-methods
-#' @export
-setMethod(
-  f = "plotExposure",
-  signature = "output_Shadow_all",
-  definition = function(object, max_rate = 0.25, theta_segment = "estimated", color = "blue", color_final = "blue", file_pdf = NULL, ...) {
-    .Deprecated("plot", msg = "plotExposure() is deprecated. Use plot(type = 'exposure') instead.")
-    p <- plot(object,
-      type = "exposure",
-      theta_segment = theta_segment,
-      color = color,
-      color_final = color_final,
-      ...
-    )
-    return(p)
-  }
-)
