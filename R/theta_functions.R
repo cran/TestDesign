@@ -1,6 +1,328 @@
 #' @include shadow_functions.R
 NULL
 
+#' @noRd
+estimateInterimTheta <- function(
+  o, j, position,
+  current_theta,
+  augmented_posterior_record, posterior_record,
+  augmented_pool, pool, model,
+  augmented_item_index,
+  augmented_item_resp,
+  include_items_for_estimation,
+  config,
+  constants,
+  posterior_constants
+) {
+
+  if (toupper(config@interim_theta$method) == "EAP") {
+
+    interim_EAP <- computeEAPFromPosterior(augmented_posterior_record$posterior[j, ], constants$theta_q)
+    interim_EAP <- applyShrinkageCorrection(interim_EAP, config@interim_theta)
+    o@interim_theta_est[position] <- interim_EAP$theta
+    o@interim_se_est[position]    <- interim_EAP$se
+
+    return(o)
+
+  }
+
+  if (toupper(config@interim_theta$method) == "MLE") {
+
+    interim_EAP <- computeEAPFromPosterior(augmented_posterior_record$posterior[j, ], constants$theta_q)
+    interim_MLE <- mle(augmented_pool,
+      select        = augmented_item_index,
+      resp          = augmented_item_resp,
+      start_theta   = interim_EAP$theta,
+      max_iter      = config@interim_theta$max_iter,
+      crit          = config@interim_theta$crit,
+      theta_range   = config@interim_theta$bound_ML,
+      truncate      = config@interim_theta$truncate_ML,
+      max_change    = config@interim_theta$max_change,
+      use_step_size = config@interim_theta$use_step_size,
+      step_size     = config@interim_theta$step_size,
+      do_Fisher     = config@interim_theta$do_Fisher
+    )
+
+    o@interim_theta_est[position] <- interim_MLE$th
+    o@interim_se_est[position]    <- interim_MLE$se
+
+    return(o)
+
+  }
+
+  if (toupper(config@interim_theta$method) == "MLEF") {
+
+    interim_EAP <- computeEAPFromPosterior(augmented_posterior_record$posterior[j, ], constants$theta_q)
+    interim_MLEF <- mlef(augmented_pool,
+      select           = augmented_item_index,
+      resp             = augmented_item_resp,
+      fence_slope      = config@interim_theta$fence_slope,
+      fence_difficulty = config@interim_theta$fence_difficulty,
+      start_theta      = interim_EAP$theta,
+      max_iter         = config@interim_theta$max_iter,
+      crit             = config@interim_theta$crit,
+      theta_range      = config@interim_theta$bound_ML,
+      truncate         = config@interim_theta$truncate_ML,
+      max_change       = config@interim_theta$max_change,
+      use_step_size    = config@interim_theta$use_step_size,
+      step_size        = config@interim_theta$step_size,
+      do_Fisher        = config@interim_theta$do_Fisher
+    )
+
+    o@interim_theta_est[position] <- interim_MLEF$th
+    o@interim_se_est[position]    <- interim_MLEF$se
+
+    return(o)
+
+  }
+
+  if (toupper(config@interim_theta$method) == "EB") {
+
+    # TODO: needs to work with include_items_for_estimation
+    if (!is.null(include_items_for_estimation)) {
+      stop("EB with include_items_for_estimation is not available")
+    }
+
+    current_item <- o@administered_item_index[position]
+
+    interim_EB <- theta_EB_single(
+      posterior_constants$n_sample, current_theta$theta, current_theta$se,
+      pool@ipar[current_item, ],
+      o@administered_item_resp[position], pool@NCAT[current_item],
+      model[current_item], 1, c(current_theta$theta, current_theta$se)
+    )[, 1]
+
+    interim_EB                    <- applyThin(interim_EB, posterior_constants)
+
+    o@posterior_sample            <- interim_EB
+    o@interim_theta_est[position] <- mean(interim_EB)
+    o@interim_se_est[position]    <- sd(interim_EB)
+
+    return(o)
+
+  }
+
+  if (toupper(config@interim_theta$method) == "FB") {
+
+    # TODO: needs to work with include_items_for_estimation
+    if (!is.null(include_items_for_estimation)) {
+      stop("FB with include_items_for_estimation is not available")
+    }
+
+    current_item <- o@administered_item_index[position]
+
+    interim_FB <- theta_FB_single(
+      posterior_constants$n_sample, current_theta$theta, current_theta$se,
+      posterior_record$ipar_list[[current_item]],
+      pool@ipar[current_item, ],
+      o@administered_item_resp[position], pool@NCAT[current_item],
+      model[current_item], 1, c(current_theta$theta, current_theta$se)
+    )[, 1]
+
+    interim_FB                    <- applyThin(interim_FB, posterior_constants)
+
+    o@posterior_sample            <- interim_FB
+    o@interim_theta_est[position] <- mean(interim_FB)
+    o@interim_se_est[position]    <- sd(interim_FB)
+
+    return(o)
+
+  }
+
+}
+
+#' @noRd
+estimateFinalTheta <- function(
+  o, j, position,
+  augmented_pool, pool, model,
+  augment_item_index,
+  augment_item_resp,
+  include_items_for_estimation,
+  posterior_record, prior_par,
+  config,
+  constants,
+  posterior_constants
+) {
+
+  if (identical(config@final_theta, config@interim_theta)) {
+
+    # Skip final theta estimation if methods are identical
+
+    o@final_theta_est <- o@interim_theta_est[position]
+    o@final_se_est    <- o@interim_se_est[position]
+
+    return(o)
+
+  }
+
+  if (toupper(config@final_theta$method == "EAP")) {
+
+    final_prior <- generateDistributionFromPriorPar(
+      toupper(config@final_theta$prior_dist),
+      config@final_theta$prior_par,
+      constants$theta_q,
+      1
+    )[1, ]
+
+    o@posterior       <- o@likelihood * final_prior
+    final_EAP <- computeEAPFromPosterior(o@posterior, constants$theta_q)
+    final_EAP <- applyShrinkageCorrection(final_EAP, config@final_theta)
+    o@final_theta_est <- final_EAP$theta
+    o@final_se_est    <- final_EAP$se
+
+    return(o)
+
+  }
+
+  if (toupper(config@final_theta$method) == "MLE") {
+
+    if (!is.null(include_items_for_estimation)) {
+
+      final_MLE <- mle(
+        augmented_pool,
+        select        = c(augment_item_index, o@administered_item_index[1:constants$max_ni]),
+        resp          = c(augment_item_resp,  o@administered_item_resp[1:constants$max_ni]),
+        start_theta   = o@interim_theta_est[constants$max_ni],
+        max_iter      = config@final_theta$max_iter,
+        crit          = config@final_theta$crit,
+        theta_range   = config@final_theta$bound_ML,
+        truncate      = config@final_theta$truncate_ML,
+        max_change    = config@final_theta$max_change,
+        use_step_size = config@final_theta$use_step_size,
+        step_size     = config@final_theta$step_size,
+        do_Fisher     = config@final_theta$do_Fisher
+      )
+
+    }
+
+    if (is.null(include_items_for_estimation)) {
+
+      final_MLE <- mle(
+        pool,
+        select        = o@administered_item_index[1:constants$max_ni],
+        resp          = o@administered_item_resp[1:constants$max_ni],
+        start_theta   = o@interim_theta_est[constants$max_ni],
+        max_iter      = config@final_theta$max_iter,
+        crit          = config@final_theta$crit,
+        theta_range   = config@final_theta$bound_ML,
+        truncate      = config@final_theta$truncate_ML,
+        max_change    = config@final_theta$max_change,
+        use_step_size = config@final_theta$use_step_size,
+        step_size     = config@final_theta$step_size,
+        do_Fisher     = config@final_theta$do_Fisher
+      )
+
+    }
+
+    o@final_theta_est <- final_MLE$th
+    o@final_se_est    <- final_MLE$se
+
+    return(o)
+
+  }
+
+  if (toupper(config@final_theta$method) == "MLEF") {
+
+    if (!is.null(include_items_for_estimation)) {
+
+      final_MLEF <- mlef(
+        augmented_pool,
+        select           = c(augment_item_index, o@administered_item_index[1:constants$max_ni]),
+        resp             = c(augment_item_resp,  o@administered_item_resp[1:constants$max_ni]),
+        fence_slope      = config@final_theta$fence_slope,
+        fence_difficulty = config@final_theta$fence_difficulty,
+        start_theta      = o@interim_theta_est[constants$max_ni],
+        max_iter         = config@final_theta$max_iter,
+        crit             = config@final_theta$crit,
+        theta_range      = config@final_theta$bound_ML,
+        truncate         = config@final_theta$truncate_ML,
+        max_change       = config@final_theta$max_change,
+        use_step_size    = config@final_theta$use_step_size,
+        step_size        = config@final_theta$step_size,
+        do_Fisher        = config@final_theta$do_Fisher
+      )
+
+    }
+
+    if (is.null(include_items_for_estimation)) {
+
+      final_MLEF <- mlef(
+        pool,
+        select           = o@administered_item_index[1:constants$max_ni],
+        resp             = o@administered_item_resp[1:constants$max_ni],
+        fence_slope      = config@final_theta$fence_slope,
+        fence_difficulty = config@final_theta$fence_difficulty,
+        start_theta      = o@interim_theta_est[constants$max_ni],
+        max_iter         = config@final_theta$max_iter,
+        crit             = config@final_theta$crit,
+        theta_range      = config@final_theta$bound_ML,
+        truncate         = config@final_theta$truncate_ML,
+        max_change       = config@final_theta$max_change,
+        use_step_size    = config@final_theta$use_step_size,
+        step_size        = config@final_theta$step_size,
+        do_Fisher        = config@final_theta$do_Fisher
+      )
+
+    }
+
+    o@final_theta_est <- final_MLEF$th
+    o@final_se_est    <- final_MLEF$se
+
+    return(o)
+
+  }
+
+  if (toupper(config@final_theta$method) == "EB") {
+
+    final_prior <- getInitialThetaPrior(
+      config@final_theta, prior_par, constants$nj, j,
+      posterior_constants)
+
+    final_EB <- theta_EB(
+      posterior_constants$n_sample, final_prior$theta, final_prior$se,
+      pool@ipar[o@administered_item_index[1:position], ],
+      o@administered_item_resp[1:position], pool@NCAT[o@administered_item_index[1:position]],
+      model[o@administered_item_index[1:position]], 1, c(final_prior$theta, final_prior$se)
+    )
+
+    final_EB           <- applyThin(final_EB, posterior_constants)
+
+    o@prior_par        <- final_prior$prior_par
+    o@posterior_sample <- final_EB
+    o@final_theta_est  <- mean(final_EB)
+    o@final_se_est     <- sd(final_EB)
+
+    return(o)
+
+  }
+
+  if (toupper(config@final_theta$method) == "FB") {
+
+    final_prior <- getInitialThetaPrior(
+      config@final_theta, prior_par, constants$nj, j,
+      posterior_constants)
+
+    final_FB <- theta_FB(
+      posterior_constants$n_sample, final_prior$theta, final_prior$se,
+      posterior_record$ipar_list[o@administered_item_index[1:position]],
+      pool@ipar[o@administered_item_index[1:position], ],
+      o@administered_item_resp[1:position], pool@NCAT[o@administered_item_index[1:position]],
+      model[o@administered_item_index[1:position]], 1, c(final_prior$theta, final_prior$se)
+    )
+
+    final_FB           <- applyThin(final_FB, posterior_constants)
+
+    o@prior_par        <- final_prior$prior_par
+    o@posterior_sample <- final_FB
+    o@final_theta_est  <- mean(final_FB)
+    o@final_se_est     <- sd(final_FB)
+
+    return(o)
+
+  }
+
+}
+
 #' Compute maximum likelihood estimates of theta
 #'
 #' \code{\link{mle}} is a function to compute maximum likelihood estimates of theta.
@@ -746,25 +1068,23 @@ parseInitialTheta <- function(config_theta, initial_theta, prior_par, nj, j, pos
 }
 
 #' @noRd
-getThetaSegment <- function(current_theta, position, exposure_control, exposure_constants) {
+parseThetaSegment <- function(current_theta, position, exposure_control, constants) {
 
-  exposure_control_method <- toupper(exposure_control$method)
-  n_segment   <- exposure_constants$n_segment
-  segment_cut <- exposure_constants$segment_cut
+  n_segment   <- constants$n_segment
+  segment_cut <- constants$segment_cut
 
-  if (exposure_control_method %in% c("NONE", "ELIGIBILITY", "BIGM")) {
-    if (isFirstSegmentValid(exposure_control$first_segment, n_segment, position)) {
-      segment <- exposure_control$first_segment[position]
-      return(segment)
-    } else {
-      segment <- find_segment(current_theta$theta, segment_cut)
-      return(segment)
-    }
+  if (isFirstSegmentValid(exposure_control$first_segment, n_segment, position)) {
+    segment <- exposure_control$first_segment[position]
+    return(segment)
   }
 
-  if (exposure_control_method %in% c("BIGM-BAYESIAN")) {
-    # maybe not necessary to make this into a function
-    segment_prob <- getSegmentProb(current_theta$posterior_sample, exposure_constants)
+  if (constants$exposure_control_method %in% c("NONE", "ELIGIBILITY", "BIGM")) {
+    segment <- find_segment(current_theta$theta, segment_cut)
+    return(segment)
+  }
+
+  if (constants$exposure_control_method %in% c("BIGM-BAYESIAN")) {
+    segment_prob <- getSegmentProb(current_theta$posterior_sample, constants)
     segment      <- which.max(segment_prob)
     return(segment)
   }

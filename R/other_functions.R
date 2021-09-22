@@ -2,7 +2,7 @@
 NULL
 
 #' @noRd
-getConstants <- function(constraints, config, arg_data, true_theta) {
+getConstants <- function(constraints, config, arg_data, true_theta, max_info) {
 
   o <- list()
   o$ni <- constraints@ni
@@ -49,6 +49,27 @@ getConstants <- function(constraints, config, arg_data, true_theta) {
   } else {
     o$set_based_refresh <- FALSE
   }
+
+  o$exposure_control_method <- toupper(config@exposure_control$method)
+  if (o$exposure_control_method %in% c("ELIGIBILITY", "BIGM", "BIGM-BAYESIAN")) {
+    o$use_eligibility_control <- TRUE
+  } else {
+    o$use_eligibility_control <- FALSE
+  }
+
+  o$max_exposure_rate   <- config@exposure_control$max_exposure_rate
+  o$fading_factor       <- config@exposure_control$fading_factor
+  o$acceleration_factor <- config@exposure_control$acceleration_factor
+  o$n_segment           <- config@exposure_control$n_segment
+  o$segment_cut         <- config@exposure_control$segment_cut
+  o$cut_lower           <- o$segment_cut[(1:o$n_segment)]
+  o$cut_upper           <- o$segment_cut[(1:o$n_segment) + 1]
+
+  if (!length(o$max_exposure_rate) %in% c(1, o$n_segment)) {
+    stop("length(max_exposure_rate) must be 1 or n_segment")
+  }
+
+  o$max_info <- max_info
 
   return(o)
 
@@ -100,27 +121,37 @@ initializeShadowEngine <- function(constants, refresh_policy) {
 }
 
 #' @noRd
-makeData <- function(pool, true_theta, arg_data, constants) {
+makeData <- function(pool, true_theta, resp_data, config, seed) {
 
   o <- list()
-  theta_grid <- constants$theta_q
+  theta_grid <- config@theta_grid
 
-  if (!is.null(arg_data)) {
+  if (!is.null(resp_data) & !is.null(true_theta)) {
+    # only response data is available
     o$test <- makeTest(pool, theta_grid, info_type = "FISHER", true_theta = NULL)
-    o$test@data <- as.matrix(arg_data)
-    for (i in 1:constants$ni) {
+    o$test@data <- as.matrix(resp_data)
+    for (i in 1:pool@ni) {
       invalid_resp <- !(o$test@data[, i] %in% 0:(pool@NCAT[i] - 1))
       o$test@data[invalid_resp, i] <- NA
     }
-  } else if (!is.null(true_theta)) {
-    o$test <- makeTest(pool, theta_grid, info_type = "FISHER", true_theta)
-  } else {
-    stop("either 'data' or 'true_theta' must be supplied")
+    o$max_info <- max(o$test@info)
+    return(o)
   }
 
-  o$max_info <- max(o$test@info)
+  if (is.null(resp_data) & !is.null(true_theta) & is.null(seed)) {
+    # only true theta is available
+    o$test <- makeTest(pool, theta_grid, info_type = "FISHER", true_theta)
+    o$max_info <- max(o$test@info)
+    return(o)
+  }
 
-  return(o)
+  if (is.null(resp_data) & !is.null(true_theta) & !is.null(seed)) {
+    # skip data generation; generate on the fly
+    o$max_info <- "FOO" # temporarily block this
+    return(o)
+  }
+
+  stop("either 'data' or 'true_theta' must be supplied")
 
 }
 
@@ -152,7 +183,7 @@ getInfoFixedTheta <- function(item_selection, constants, test, pool, model) {
 }
 
 #' @noRd
-getInfo <- function(item_selection, j, info_fixed_theta, current_theta, pool, model, posterior_record, info_grid) {
+computeInfoAtCurrentTheta <- function(item_selection, j, info_fixed_theta, current_theta, pool, model, posterior_record, info_grid) {
 
   item_method <- toupper(item_selection$method)
   info_type   <- toupper(item_selection$info_type)
@@ -196,7 +227,7 @@ getInfo <- function(item_selection, j, info_fixed_theta, current_theta, pool, mo
 #' @noRd
 initializeStimulusRecord <- function() {
   o <- list()
-  o$end_set <- TRUE
+  o$just_finished_this_set <- TRUE
   o$finished_stimulus_index      <- NULL
   o$finished_stimulus_item_count <- NULL
   return(o)
@@ -226,7 +257,7 @@ shouldShadowBeRefreshed <- function(position, refresh_policy, refresh_shadow, th
       return(TRUE)
     }
   }
-  if (constants$set_based_refresh && constants$set_based && stimulus_record$end_set) {
+  if (constants$set_based_refresh && constants$set_based && stimulus_record$just_finished_this_set) {
     return(TRUE)
   }
 
@@ -256,8 +287,8 @@ selectItemFromShadowTest <- function(shadow_test, position, constants, x) {
   o <- list()
 
   o$n_remaining <- constants$test_length - position
-  o$stimulus_finished     <- FALSE
-  o$new_stimulus_selected <- FALSE
+  o$is_last_item_in_this_set <- FALSE
+  o$new_stimulus_selected    <- FALSE
 
   o$stimulus_of_previous_item <- 0
 
@@ -303,13 +334,13 @@ selectItemFromShadowTest <- function(shadow_test, position, constants, x) {
   }
 
   if (sum(shadow_test[["STINDEX"]][remaining] == o$stimulus_selected, na.rm = TRUE) == 1) {
-    o$stimulus_finished <- TRUE
+    o$is_last_item_in_this_set <- TRUE
   }
   if (is.na(o$stimulus_selected)) {
-    o$stimulus_finished <- TRUE
+    o$is_last_item_in_this_set <- TRUE
   }
   if (o$n_remaining == 0) {
-    o$stimulus_finished <- TRUE
+    o$is_last_item_in_this_set <- TRUE
   }
 
   return(o)

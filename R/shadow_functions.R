@@ -86,6 +86,7 @@ setMethod(
 #' }
 #' @template force_solver_param
 #' @param session (optional) used to communicate with Shiny app \code{\link{TestDesign}}.
+#' @param seed (optional) used to perform data generation internally.
 #'
 #' @return \code{\link{Shadow}} returns an \code{\linkS4class{output_Shadow_all}} object containing assembly results.
 #'
@@ -103,7 +104,7 @@ setMethod(
 #' @export
 setGeneric(
   name = "Shadow",
-  def = function(config, constraints = NULL, true_theta = NULL, data = NULL, prior = NULL, prior_par = NULL, exclude = NULL, include_items_for_estimation = NULL, force_solver = FALSE, session = NULL) {
+  def = function(config, constraints = NULL, true_theta = NULL, data = NULL, prior = NULL, prior_par = NULL, exclude = NULL, include_items_for_estimation = NULL, force_solver = FALSE, session = NULL, seed = NULL) {
     standardGeneric("Shadow")
   }
 )
@@ -113,7 +114,7 @@ setGeneric(
 setMethod(
   f = "Shadow",
   signature = "config_Shadow",
-  definition = function(config, constraints, true_theta, data, prior, prior_par, exclude, include_items_for_estimation, force_solver = FALSE, session) {
+  definition = function(config, constraints, true_theta, data, prior, prior_par, exclude, include_items_for_estimation, force_solver = FALSE, session, seed = NULL) {
 
     if (!validObject(config)) {
       stop("'config' argument is not a valid 'config_Shadow' object")
@@ -132,8 +133,8 @@ setMethod(
 
     pool                <- constraints@pool
     model               <- sanitizeModel(pool@model)
-    constants           <- getConstants(constraints, config, data, true_theta)
-    all_data            <- makeData(pool, true_theta, data, constants)
+    all_data            <- makeData(pool, true_theta, data, config, seed)
+    constants           <- getConstants(constraints, config, data, true_theta, all_data$max_info)
     info_fixed_theta    <- getInfoFixedTheta(config@item_selection, constants, all_data$test, pool, model)
     posterior_constants <- getPosteriorConstants(config)
     posterior_record    <- initializePosterior(prior, prior_par, config, constants, pool, posterior_constants)
@@ -145,17 +146,11 @@ setMethod(
     }
 
     # Initialize exposure rate control
+    if (constants$exposure_control_method %in% c("NONE", "ELIGIBILITY", "BIGM", "BIGM-BAYESIAN")) {
 
-    exposure_control   <- toupper(config@exposure_control$method)
-    exposure_constants <- getExposureConstants(config@exposure_control)
-    items_administered <- matrix(FALSE, constants$nj, constants$ni)
-    o_list <- vector(mode = "list", length = constants$nj)
-
-    if (exposure_control %in% c("NONE", "ELIGIBILITY", "BIGM", "BIGM-BAYESIAN")) {
-
-      segment_record           <- initializeSegmentRecord(exposure_constants, constants)
-      exposure_record          <- initializeExposureRecord(config@exposure_control, exposure_constants, constants)
-      exposure_record_detailed <- initializeExposureRecordSegmentwise(exposure_constants, constants)
+      segment_record           <- initializeSegmentRecord(constants)
+      exposure_record          <- initializeExposureRecord(config@exposure_control, constants)
+      exposure_record_detailed <- initializeExposureRecordSegmentwise(constants)
       if (!is.null(config@exposure_control$initial_eligibility_stats)) {
         exposure_record <- config@exposure_control$initial_eligibility_stats
       }
@@ -163,14 +158,10 @@ setMethod(
     }
 
     # Initialize usage matrix
-
-    if (constants$set_based) {
-      usage_matrix <- matrix(FALSE, nrow = constants$nj, ncol = constants$nv)
-    } else {
-      usage_matrix <- matrix(FALSE, nrow = constants$nj, ncol = constants$ni)
-    }
+    usage_matrix <- initializeUsageMatrix(constants)
 
     # Loop over nj simulees
+    o_list <- vector(mode = "list", length = constants$nj)
 
     has_progress_pkg <- requireNamespace("progress")
     if (has_progress_pkg) {
@@ -239,8 +230,8 @@ setMethod(
 
       # Simulee: flag ineligibile items
 
-      if (exposure_constants$use_eligibility_control) {
-        ineligible_flag <- flagIneligible(exposure_record, exposure_constants, constants, constraints@item_index_by_stimulus)
+      if (constants$use_eligibility_control) {
+        eligible_flag <- flagIneligible(exposure_record, constants, constraints@item_index_by_stimulus, seed, j)
       }
 
       # Simulee: create augmented pool if applicable
@@ -259,7 +250,7 @@ setMethod(
       while (!done) {
 
         position <- position + 1
-        info     <- getInfo(
+        info_current_theta <- computeInfoAtCurrentTheta(
           config@item_selection, j, info_fixed_theta, current_theta, pool, model,
           posterior_record, all_data$test@info
         )
@@ -268,87 +259,40 @@ setMethod(
 
         if (constants$use_shadow) {
 
-          o@theta_segment_index[position] <- getThetaSegment(current_theta, position, config@exposure_control, exposure_constants)
+          o@theta_segment_index[position] <- parseThetaSegment(
+            current_theta, position, config@exposure_control, constants
+          )
 
           if (shouldShadowBeRefreshed(
             position, config@refresh_policy, refresh_shadow,
             theta_change, constants, stimulus_record
           )) {
 
-            administered_stimulus_index <- na.omit(unique(o@administered_stimulus_index))
-            o@shadow_test_refreshed[position] <- TRUE
-
-            xdata         <- getXdataOfAdministered(constants, position, o, stimulus_record, constraints)
-            xdata_exclude <- getXdataOfExcludedEntry(constants, exclude_index[[j]])
-            xdata         <- combineXdata(xdata, xdata_exclude)
-
-            # Do exposure control
-
-            if (exposure_constants$use_eligibility_control) {
-
-              # Get ineligible items in the current theta segment
-
-              current_segment            <- o@theta_segment_index[position]
-              ineligible_flag_in_segment <- getIneligibleFlagInSegment(ineligible_flag, current_segment, constants)
-              ineligible_flag_in_segment <- flagAdministeredAsEligible(ineligible_flag_in_segment, o, position, constants)
-
+            if (!is.null(seed)) {
+              set.seed(seed * 234 + j)
             }
-
-            if (exposure_constants$use_eligibility_control && exposure_control %in% c("ELIGIBILITY")) {
-
-              xdata_elg  <- applyIneligibleFlagtoXdata(xdata, ineligible_flag_in_segment, constants, constraints)
-              optimal    <- runAssembly(config, constraints, xdata = xdata_elg, objective = info)
-              is_optimal <- isOptimal(optimal$status, config@MIP$solver)
-
-              # If not optimal, retry without xmat
-
-              if (is_optimal) {
-                o@shadow_test_feasible[position] <- TRUE
-              } else {
-                o@shadow_test_feasible[position] <- FALSE
-                optimal <- runAssembly(config, constraints, xdata = xdata, objective = info)
-              }
-
-            }
-
-            if (exposure_constants$use_eligibility_control && exposure_control %in% c("BIGM", "BIGM-BAYESIAN")) {
-
-              # Do Big-M based exposure control
-              # Penalize item info
-
-              if (!is.null(config@exposure_control$M)) {
-                if (config@item_selection$method == "GFI") {
-                  info[ineligible_flag_in_segment$i == 1] <-
-                  info[ineligible_flag_in_segment$i == 1] + config@exposure_control$M # add because GFI performs minimization
-                } else {
-                  info[ineligible_flag_in_segment$i == 1] <-
-                  info[ineligible_flag_in_segment$i == 1] - config@exposure_control$M
-                }
-              } else {
-                info[ineligible_flag_in_segment$i == 1] <- -1 * all_data$max_info - 1
-              }
-
-              optimal <- runAssembly(config, constraints, xdata = xdata, objective = info)
-              o@shadow_test_feasible[position] <- TRUE
-
-            }
-
-            if (!exposure_constants$use_eligibility_control) {
-
-              optimal <- runAssembly(config, constraints, xdata = xdata, objective = info)
-              o@shadow_test_feasible[position] <- TRUE
-
-            }
-
-            is_optimal <- isOptimal(optimal$status, config@MIP$solver)
+            shadowtest <- assembleShadowTest(
+              j, position, o,
+              eligible_flag,
+              exclude_index,
+              stimulus_record,
+              info_current_theta,
+              config,
+              constants,
+              constraints
+            )
+            is_optimal <- isShadowtestOptimal(shadowtest)
             if (!is_optimal) {
-              printSolverNewline(config@MIP$solver)
-              msg <- getSolverStatusMessage(optimal$status, config@MIP$solver)
+              printSolverNewline(shadowtest$solver)
+              msg <- getSolverStatusMessage(shadowtest$status, shadowtest$solver)
               warning(msg, immediate. = TRUE)
               stop(sprintf("MIP solver returned non-zero status at examinee %i position %i", j, position))
             }
 
-            o@solve_time[position] <- optimal$solve_time
+            o@shadow_test_refreshed[position] <- TRUE
+            o@solve_time[position] <- shadowtest$solve_time
+
+            o@shadow_test_feasible[position] <- shadowtest$feasible
 
           } else {
 
@@ -359,16 +303,16 @@ setMethod(
 
           # Select an item from shadow test
 
-          selection <- selectItemFromShadowTest(optimal$shadow_test, position, constants, o)
+          selection <- selectItemFromShadowTest(shadowtest$shadow_test, position, constants, o)
           o@administered_item_index[position] <- selection$item_selected
-          o@shadow_test[[position]]$i         <- optimal$shadow_test$INDEX
-          o@shadow_test[[position]]$s         <- optimal$shadow_test$STINDEX
+          o@shadow_test[[position]]$i         <- shadowtest$shadow_test$INDEX
+          o@shadow_test[[position]]$s         <- shadowtest$shadow_test$STINDEX
 
         } else {
 
           # If not doing shadow
 
-          o@administered_item_index[position] <- selectItem(info, position, o)
+          o@administered_item_index[position] <- selectItem(info_current_theta, position, o)
 
         }
 
@@ -377,10 +321,10 @@ setMethod(
         if (constants$set_based) {
           o@administered_stimulus_index[position] <- selection$stimulus_selected
 
-          if (selection$stimulus_finished) {
-            stimulus_record$end_set <- TRUE
+          if (selection$is_last_item_in_this_set) {
+            stimulus_record$just_finished_this_set <- TRUE
           } else {
-            stimulus_record$end_set <- FALSE
+            stimulus_record$just_finished_this_set <- FALSE
           }
 
           if (!is.na(selection$stimulus_of_previous_item)) {
@@ -397,13 +341,30 @@ setMethod(
 
         # Item position / simulee: record which item was administered
 
-        o@administered_item_resp[position] <- all_data$test@data[j, o@administered_item_index[position]]
-        o@administered_item_ncat[position] <- pool@NCAT[o@administered_item_index[position]]
-        items_administered[j, o@administered_item_index[position]] <- TRUE
+        if (!is.null(seed)) {
+          set.seed((seed * 345) + (j * 123) + o@administered_item_index[position])
+          o@administered_item_resp[position] <- simResp(
+            pool[o@administered_item_index[position]],
+            o@true_theta
+          )
+          o@administered_item_ncat[position] <- pool@NCAT[o@administered_item_index[position]]
+        }
+        if (is.null(seed)) {
+          o@administered_item_resp[position] <- all_data$test@data[j, o@administered_item_index[position]]
+          o@administered_item_ncat[position] <- pool@NCAT[o@administered_item_index[position]]
+        }
 
         # Item position / simulee: update posterior
 
-        prob_matrix_current_item <- all_data$test@prob[[o@administered_item_index[position]]]
+        if (!is.null(seed)) {
+          prob_matrix_current_item <- calcProb(
+            pool[o@administered_item_index[position]],
+            constants$theta_q
+          )[[1]]
+        }
+        if (is.null(seed)) {
+          prob_matrix_current_item <- all_data$test@prob[[o@administered_item_index[position]]]
+        }
         prob_resp_current_item   <- prob_matrix_current_item[, o@administered_item_resp[position] + 1]
         posterior_record <- updatePosterior(posterior_record, j, prob_resp_current_item)
 
@@ -441,103 +402,20 @@ setMethod(
 
         }
 
+
         # Item position / simulee: estimate theta
-
-        if (toupper(config@interim_theta$method) == "EAP") {
-
-          interim_EAP <- computeEAPFromPosterior(augmented_posterior_record$posterior[j, ], constants$theta_q)
-          interim_EAP <- applyShrinkageCorrection(interim_EAP, config@interim_theta)
-
-          o@interim_theta_est[position] <- interim_EAP$theta
-          o@interim_se_est[position]    <- interim_EAP$se
-
-        } else if (toupper(config@interim_theta$method) == "MLE") {
-
-          interim_EAP <- computeEAPFromPosterior(augmented_posterior_record$posterior[j, ], constants$theta_q)
-          interim_MLE <- mle(augmented_pool,
-            select        = augmented_item_index,
-            resp          = augmented_item_resp,
-            start_theta   = interim_EAP$theta,
-            max_iter      = config@interim_theta$max_iter,
-            crit          = config@interim_theta$crit,
-            theta_range   = config@interim_theta$bound_ML,
-            truncate      = config@interim_theta$truncate_ML,
-            max_change    = config@interim_theta$max_change,
-            use_step_size = config@interim_theta$use_step_size,
-            step_size     = config@interim_theta$step_size,
-            do_Fisher     = config@interim_theta$do_Fisher
-          )
-
-          o@interim_theta_est[position] <- interim_MLE$th
-          o@interim_se_est[position]    <- interim_MLE$se
-
-        } else if (toupper(config@interim_theta$method) == "MLEF") {
-
-          interim_EAP <- computeEAPFromPosterior(augmented_posterior_record$posterior[j, ], constants$theta_q)
-          interim_MLEF <- mlef(augmented_pool,
-            select           = augmented_item_index,
-            resp             = augmented_item_resp,
-            fence_slope      = config@interim_theta$fence_slope,
-            fence_difficulty = config@interim_theta$fence_difficulty,
-            start_theta      = interim_EAP$theta,
-            max_iter         = config@interim_theta$max_iter,
-            crit             = config@interim_theta$crit,
-            theta_range      = config@interim_theta$bound_ML,
-            truncate         = config@interim_theta$truncate_ML,
-            max_change       = config@interim_theta$max_change,
-            use_step_size    = config@interim_theta$use_step_size,
-            step_size        = config@interim_theta$step_size,
-            do_Fisher        = config@interim_theta$do_Fisher
-          )
-
-          o@interim_theta_est[position] <- interim_MLEF$th
-          o@interim_se_est[position]    <- interim_MLEF$se
-
-        } else if (toupper(config@interim_theta$method) == "EB") {
-
-          # TODO: needs to work with include_items_for_estimation
-          if (!is.null(include_items_for_estimation)) {
-            stop("EB with include_items_for_estimation is not available")
-          }
-
-          current_item <- o@administered_item_index[position]
-
-          interim_EB <- theta_EB_single(
-            posterior_constants$n_sample, current_theta$theta, current_theta$se,
-            pool@ipar[current_item, ],
-            o@administered_item_resp[position], pool@NCAT[current_item],
-            model[current_item], 1, c(current_theta$theta, current_theta$se)
-          )[, 1]
-
-          interim_EB                    <- applyThin(interim_EB, posterior_constants)
-
-          o@posterior_sample            <- interim_EB
-          o@interim_theta_est[position] <- mean(interim_EB)
-          o@interim_se_est[position]    <- sd(interim_EB)
-
-        } else if (toupper(config@interim_theta$method) == "FB") {
-
-          # TODO: needs to work with include_items_for_estimation
-          if (!is.null(include_items_for_estimation)) {
-            stop("FB with include_items_for_estimation is not available")
-          }
-
-          current_item <- o@administered_item_index[position]
-
-          interim_FB <- theta_FB_single(
-            posterior_constants$n_sample, current_theta$theta, current_theta$se, posterior_record$ipar_list[[current_item]],
-            pool@ipar[current_item, ],
-            o@administered_item_resp[position], pool@NCAT[current_item],
-            model[current_item], 1, c(current_theta$theta, current_theta$se)
-          )[, 1]
-
-          interim_FB                    <- applyThin(interim_FB, posterior_constants)
-
-          o@posterior_sample            <- interim_FB
-          o@interim_theta_est[position] <- mean(interim_FB)
-          o@interim_se_est[position]    <- sd(interim_FB)
-
-        }
+        o <- estimateInterimTheta(
+          o, j, position,
+          current_theta,
+          augmented_posterior_record, posterior_record,
+          augmented_pool, pool, model,
+          augmented_item_index,
+          augmented_item_resp,
+          include_items_for_estimation,
+          config,
+          constants,
+          posterior_constants
+        )
 
         theta_change                   <- o@interim_theta_est[position] - current_theta$theta
         current_theta$posterior_sample <- o@posterior_sample
@@ -559,227 +437,41 @@ setMethod(
       }
 
       # Simulee: test complete, estimate theta
-
-      if (identical(config@final_theta, config@interim_theta)) {
-
-        # Skip final theta estimation if methods are identical
-
-        o@final_theta_est <- o@interim_theta_est[position]
-        o@final_se_est    <- o@interim_se_est[position]
-
-      } else if (toupper(config@final_theta$method == "EAP")) {
-
-        final_prior <- generateDistributionFromPriorPar(
-          toupper(config@final_theta$prior_dist),
-          config@final_theta$prior_par,
-          constants$theta_q,
-          1
-        )[1, ]
-
-        o@posterior       <- o@likelihood * final_prior
-        final_EAP <- computeEAPFromPosterior(o@posterior, constants$theta_q)
-        final_EAP <- applyShrinkageCorrection(final_EAP, config@final_theta)
-        o@final_theta_est <- final_EAP$theta
-        o@final_se_est    <- final_EAP$se
-
-      } else if (toupper(config@final_theta$method) == "MLE") {
-
-        if (!is.null(include_items_for_estimation)) {
-
-          final_MLE <- mle(
-            augmented_pool,
-            select        = c(augment_item_index, o@administered_item_index[1:constants$max_ni]),
-            resp          = c(augment_item_resp,  o@administered_item_resp[1:constants$max_ni]),
-            start_theta   = o@interim_theta_est[constants$max_ni],
-            max_iter      = config@final_theta$max_iter,
-            crit          = config@final_theta$crit,
-            theta_range   = config@final_theta$bound_ML,
-            truncate      = config@final_theta$truncate_ML,
-            max_change    = config@final_theta$max_change,
-            use_step_size = config@final_theta$use_step_size,
-            step_size     = config@final_theta$step_size,
-            do_Fisher     = config@final_theta$do_Fisher
-          )
-
-        } else {
-
-          final_MLE <- mle(
-            pool,
-            select        = o@administered_item_index[1:constants$max_ni],
-            resp          = o@administered_item_resp[1:constants$max_ni],
-            start_theta   = o@interim_theta_est[constants$max_ni],
-            max_iter      = config@final_theta$max_iter,
-            crit          = config@final_theta$crit,
-            theta_range   = config@final_theta$bound_ML,
-            truncate      = config@final_theta$truncate_ML,
-            max_change    = config@final_theta$max_change,
-            use_step_size = config@final_theta$use_step_size,
-            step_size     = config@final_theta$step_size,
-            do_Fisher     = config@final_theta$do_Fisher
-          )
-
-        }
-
-        o@final_theta_est <- final_MLE$th
-        o@final_se_est    <- final_MLE$se
-
-      } else if (toupper(config@final_theta$method) == "MLEF") {
-
-        if (!is.null(include_items_for_estimation)) {
-
-          final_MLEF <- mlef(
-            augmented_pool,
-            select           = c(augment_item_index, o@administered_item_index[1:constants$max_ni]),
-            resp             = c(augment_item_resp,  o@administered_item_resp[1:constants$max_ni]),
-            fence_slope      = config@final_theta$fence_slope,
-            fence_difficulty = config@final_theta$fence_difficulty,
-            start_theta      = o@interim_theta_est[constants$max_ni],
-            max_iter         = config@final_theta$max_iter,
-            crit             = config@final_theta$crit,
-            theta_range      = config@final_theta$bound_ML,
-            truncate         = config@final_theta$truncate_ML,
-            max_change       = config@final_theta$max_change,
-            use_step_size    = config@final_theta$use_step_size,
-            step_size        = config@final_theta$step_size,
-            do_Fisher        = config@final_theta$do_Fisher
-          )
-
-        } else {
-
-          final_MLEF <- mlef(
-            pool,
-            select           = o@administered_item_index[1:constants$max_ni],
-            resp             = o@administered_item_resp[1:constants$max_ni],
-            fence_slope      = config@final_theta$fence_slope,
-            fence_difficulty = config@final_theta$fence_difficulty,
-            start_theta      = o@interim_theta_est[constants$max_ni],
-            max_iter         = config@final_theta$max_iter,
-            crit             = config@final_theta$crit,
-            theta_range      = config@final_theta$bound_ML,
-            truncate         = config@final_theta$truncate_ML,
-            max_change       = config@final_theta$max_change,
-            use_step_size    = config@final_theta$use_step_size,
-            step_size        = config@final_theta$step_size,
-            do_Fisher        = config@final_theta$do_Fisher
-          )
-
-        }
-
-        o@final_theta_est <- final_MLEF$th
-        o@final_se_est    <- final_MLEF$se
-
-      } else if (toupper(config@final_theta$method) == "EB") {
-
-        final_prior <- getInitialThetaPrior(
-          config@final_theta, prior_par, constants$nj, j,
-          posterior_constants)
-
-        final_EB <- theta_EB(
-          posterior_constants$n_sample, final_prior$theta, final_prior$se,
-          pool@ipar[o@administered_item_index[1:position], ],
-          o@administered_item_resp[1:position], pool@NCAT[o@administered_item_index[1:position]],
-          model[o@administered_item_index[1:position]], 1, c(final_prior$theta, final_prior$se)
-        )
-
-        final_EB           <- applyThin(final_EB, posterior_constants)
-
-        o@prior_par        <- final_prior$prior_par
-        o@posterior_sample <- final_EB
-        o@final_theta_est  <- mean(final_EB)
-        o@final_se_est     <- sd(final_EB)
-
-      } else if (toupper(config@final_theta$method) == "FB") {
-
-        final_prior <- getInitialThetaPrior(
-          config@final_theta, prior_par, constants$nj, j,
-          posterior_constants)
-
-        final_FB <- theta_FB(
-          posterior_constants$n_sample, final_prior$theta, final_prior$se,
-          posterior_record$ipar_list[o@administered_item_index[1:position]],
-          pool@ipar[o@administered_item_index[1:position], ],
-          o@administered_item_resp[1:position], pool@NCAT[o@administered_item_index[1:position]],
-          model[o@administered_item_index[1:position]], 1, c(final_prior$theta, final_prior$se)
-        )
-
-        final_FB           <- applyThin(final_FB, posterior_constants)
-
-        o@prior_par        <- final_prior$prior_par
-        o@posterior_sample <- final_FB
-        o@final_theta_est  <- mean(final_FB)
-        o@final_se_est     <- sd(final_FB)
-
-      }
+      o <- estimateFinalTheta(
+        o, j, position,
+        augmented_pool, pool, model,
+        augment_item_index,
+        augment_item_resp,
+        include_items_for_estimation,
+        posterior_record, prior_par,
+        config,
+        constants,
+        posterior_constants
+      )
 
       # Simulee: record item usage
-
-      usage_matrix[j, o@administered_item_index] <- TRUE
-      if (constants$set_based) {
-        usage_matrix[j, constants$ni + o@administered_stimulus_index] <- TRUE
-      }
-
-      o_list[[j]] <- o
+      usage_matrix <- updateUsageMatrix(usage_matrix, j, o, constants)
 
       # Simulee: do exposure control
+      exposure_record <- doExposureControl(
+        exposure_record, segment_record,
+        o, j,
+        current_theta,
+        eligible_flag,
+        config,
+        constants
+      )
+      exposure_record_detailed <- doExposureControlDetailed(
+        exposure_record_detailed,
+        j,
+        exposure_record,
+        config,
+        constants
+      )
 
-      if (exposure_constants$use_eligibility_control) {
-
-        segment_of                 <- getSegmentOf(o, exposure_constants)
-        segment_record             <- updateSegmentRecord(segment_record, segment_of, j)
-        ineligible_flag_in_segment <- getIneligibleFlagInSegment(ineligible_flag, segment_of$final_theta_est, constants)
-        eligible_flag_in_segment   <- getEligibleFlagInSegment(ineligible_flag, segment_of$final_theta_est, constants)
-
-        o_list[[j]]@true_theta_segment <- segment_of$true_theta
-
-        if (exposure_control %in% c("ELIGIBILITY")) {
-
-          segments_to_apply <- getSegmentsToApply(exposure_constants$n_segment, segment_of$final_theta_est)
-          exposure_record   <- applyFading(exposure_record, segments_to_apply, exposure_constants, constants)
-          segment_prob      <- 1
-          segment_feasible  <- unique(o@theta_segment_index[o@shadow_test_feasible == TRUE])
-          theta_is_feasible <- segment_of$final_theta_est %in% segment_feasible
-          eligible_flag     <- getEligibleFlag(ineligible_flag, constants, !theta_is_feasible)
-          exposure_record   <- incrementExamineeCount(exposure_record, segments_to_apply, segment_prob, theta_is_feasible, exposure_constants)
-          exposure_record   <- incrementAdministrationCount(exposure_record, segments_to_apply, segment_prob, eligible_flag, o, exposure_constants, constants)
-          exposure_record   <- incrementAdministrationCountForVisitedSegments(exposure_record, segment_prob, segment_of$visited, ineligible_flag_in_segment, o, exposure_constants, constants)
-          exposure_record   <- updateEligibilityRates(exposure_record, exposure_constants, constants)
-          exposure_record   <- clipEligibilityRates(exposure_record, constants)
-
-        } else if (exposure_control %in% c("BIGM")) {
-
-          segments_to_apply <- getSegmentsToApply(exposure_constants$n_segment, segment_of$final_theta_est)
-          exposure_record   <- applyFading(exposure_record, segments_to_apply, exposure_constants, constants)
-          segment_prob      <- 1
-          eligible_flag     <- getEligibleFlag(ineligible_flag, constants, FALSE)
-          exposure_record   <- incrementExamineeCount(exposure_record, segments_to_apply, segment_prob, FALSE, exposure_constants)
-          exposure_record   <- incrementAdministrationCount(exposure_record, segments_to_apply, segment_prob, eligible_flag, o, exposure_constants, constants)
-          exposure_record   <- incrementAdministrationCountForVisitedSegments(exposure_record, segment_prob, segment_of$visited, ineligible_flag_in_segment, o, exposure_constants, constants)
-          exposure_record   <- updateEligibilityRates(exposure_record, exposure_constants, constants)
-          exposure_record   <- clipEligibilityRates(exposure_record, constants)
-
-        } else if (exposure_control %in% c("BIGM-BAYESIAN")) {
-
-          segments_to_apply <- getSegmentsToApply(exposure_constants$n_segment, 1:exposure_constants$n_segment)
-          exposure_record   <- applyFading(exposure_record, segments_to_apply, exposure_constants, constants)
-          segment_prob      <- getSegmentProb(current_theta$posterior_sample, exposure_constants)
-          eligible_flag     <- getEligibleFlag(ineligible_flag, constants, FALSE)
-          exposure_record   <- incrementExamineeCount(exposure_record, segments_to_apply, segment_prob, FALSE, exposure_constants)
-          exposure_record   <- incrementAdministrationCount(exposure_record, segments_to_apply, segment_prob, eligible_flag, o, exposure_constants, constants)
-          exposure_record   <- incrementAdministrationCountForVisitedSegments(exposure_record, segment_prob, segment_of$visited, ineligible_flag_in_segment, o, exposure_constants, constants)
-          exposure_record   <- updateEligibilityRates(exposure_record, exposure_constants, constants)
-          exposure_record   <- clipEligibilityRates(exposure_record, constants)
-
-        }
-
-        if (config@exposure_control$diagnostic_stats) {
-
-          exposure_record_detailed <- updateExposureRecordSegmentwise(
-            exposure_record_detailed, j, exposure_record, exposure_constants, constants
-          )
-
-        }
-
-      }
+      segment_of           <- getSegmentOf(o, constants)
+      o@true_theta_segment <- segment_of$true_theta
+      o_list[[j]] <- o
 
       if (!is.null(session)) {
         shinyWidgets::updateProgressBar(session = session, id = "pb", value = j, total = constants$nj)
@@ -803,76 +495,15 @@ setMethod(
     final_se_est    <- unlist(lapply(1:constants$nj, function(j) o_list[[j]]@final_se_est))
 
     # Aggregate exposure rates
-
-    if (!constants$set_based) {
-      exposure_rate <- matrix(NA, constants$ni, 2)
-      colnames(exposure_rate) <- c('Item', 'Item ER')
-      exposure_rate[, 1] <- 1:constants$ni
-      exposure_rate[, 2] <- colSums(usage_matrix) / constants$nj
-    } else {
-      exposure_rate <- matrix(NA, constants$ni, 4)
-      colnames(exposure_rate) <- c('Item', 'Stimulus', 'Item ER', 'Stimulus ER')
-      exposure_rate_raw <- colSums(usage_matrix) / constants$nj
-      exposure_rate[, 1] <- 1:constants$ni
-      exposure_rate[, 2] <- constraints@stimulus_index_by_item
-      exposure_rate[, 3] <- exposure_rate_raw[1:constants$ni]
-      exposure_rate[, 4] <- exposure_rate_raw[(constants$ni + 1):constants$nv][constraints@stimulus_index_by_item]
-    }
-
-    eligibility_stats           <- NULL
-    check_eligibility_stats     <- NULL
-    no_fading_eligibility_stats <- NULL
+    exposure_rate <- aggregateUsageMatrix(usage_matrix, constants, constraints)
 
     # Get exposure control diagnostic stats
-
-    if (exposure_constants$use_eligibility_control) {
-
-      if (config@exposure_control$diagnostic_stats) {
-
-        check_eligibility_stats <- list()
-
-        for (j in 1:constants$nj) {
-          tmp <- list()
-          tmp$true_theta         <- true_theta[j]
-          tmp$true_segment       <- find_segment(true_theta[j], exposure_constants$segment_cut)
-          tmp$true_segment_count <- segment_record$count_true[j]
-          check_eligibility_stats[[j]] <- tmp
-
-          check_eligibility_stats[[j]]$a_g_i <- exposure_record_detailed$a_g_i
-          check_eligibility_stats[[j]]$e_g_i <- exposure_record_detailed$e_g_i
-
-          if (constants$set_based) {
-            check_eligibility_stats[[j]]$a_g_s <- exposure_record_detailed$a_g_s
-            check_eligibility_stats[[j]]$e_g_s <- exposure_record_detailed$e_g_s
-          }
-
-        }
-
-        if (exposure_constants$fading_factor != 1) {
-
-          no_fading_eligibility_stats <- list()
-
-          for (j in 1:constants$nj) {
-            tmp <- list()
-            tmp$true_theta         <- true_theta[j]
-            tmp$true_segment       <- find_segment(true_theta[j], exposure_constants$segment_cut)
-            tmp$true_segment_count <- segment_record$count_true[j]
-            no_fading_eligibility_stats[[j]] <- tmp
-
-            no_fading_eligibility_stats[[j]]$a_g_i_nofade <- exposure_record_detailed$a_g_i_nofade
-            no_fading_eligibility_stats[[j]]$e_g_i_nofade <- exposure_record_detailed$e_g_i_nofade
-
-            if (constants$set_based) {
-              no_fading_eligibility_stats[[j]]$a_g_s_nofade <- exposure_record_detailed$a_g_s_nofade
-              no_fading_eligibility_stats[[j]]$e_g_s_nofade <- exposure_record_detailed$e_g_s_nofade
-            }
-
-          }
-
-        }
-
-      }
-    }
+    diagnostic_stats <- parseDiagnosticStats(
+      true_theta, segment_record,
+      exposure_record_detailed,
+      config,
+      constants
+    )
 
     if (constants$use_shadow) {
       freq_infeasible <- table(unlist(lapply(1:constants$nj, function(j) sum(!o_list[[j]]@shadow_test_feasible))))
@@ -888,7 +519,6 @@ setMethod(
     out@constraints                 <- constraints
     out@prior                       <- prior
     out@prior_par                   <- prior_par
-    out@data                        <- all_data$test@data
     out@final_theta_est             <- final_theta_est
     out@final_se_est                <- final_se_est
     out@exposure_rate               <- exposure_rate
@@ -896,9 +526,16 @@ setMethod(
     out@true_segment_count          <- segment_record$count_true
     out@est_segment_count           <- segment_record$count_est
     out@eligibility_stats           <- exposure_record
-    out@check_eligibility_stats     <- check_eligibility_stats
-    out@no_fading_eligibility_stats <- no_fading_eligibility_stats
+    out@check_eligibility_stats     <- diagnostic_stats$elg_stats
+    out@no_fading_eligibility_stats <- diagnostic_stats$elg_stats_nofade
     out@freq_infeasible             <- freq_infeasible
+
+    if (is.null(seed)) {
+      out@data <- all_data$test@data
+    }
+    if (!is.null(seed)) {
+      out@data <- NULL
+    }
 
     return(out)
   }

@@ -36,6 +36,9 @@ NULL
 #' @param simple used in \code{\linkS4class{output_Shadow}} and \code{\linkS4class{output_Shadow_all}} with \code{type = 'shadow'}. If \code{TRUE}, simplify the chart by hiding unused items.
 #' @param theta_segment used in \code{\linkS4class{output_Shadow_all}} with \code{type = 'exposure'}. The type of theta to determine exposure segments. Accepts \code{Estimated} or \code{True}. (default = \code{Estimated})
 #' @param color_final used in \code{\linkS4class{output_Shadow_all}} with \code{type = 'exposure'}. The color of item-wise exposure rates, only counting the items administered in the final theta segment as exposed.
+#' @param segment used in \code{\linkS4class{output_Shadow_all}} with \code{type = 'exposure'}. (optional) The segment index to draw the plot. Leave empty to use all segments.
+#' @param rmse used in \code{\linkS4class{output_Shadow_all}} with \code{type = 'exposure'}. If \code{TRUE}, display the RMSE value for each segment. (default = \code{FALSE})
+#' @param use_segment_label used in \code{\linkS4class{output_Shadow_all}} with \code{type = 'exposure'}. If \code{TRUE}, display the segment label for each segment. (default = \code{TRUE})
 #' @param ... arguments to pass onto \code{\link[graphics]{plot}}.
 #'
 #' @examples
@@ -89,6 +92,9 @@ setMethod(
     simple = TRUE,
     theta_segment = "Estimated",
     color_final = "blue",
+    segment = NULL,
+    rmse = FALSE,
+    use_segment_label = TRUE,
     ...) {
 
     if (!is.null(select)) {
@@ -166,6 +172,9 @@ setMethod(
     simple = TRUE,
     theta_segment = "Estimated",
     color_final = "blue",
+    segment = NULL,
+    rmse = FALSE,
+    use_segment_label = TRUE,
     ...) {
 
     config      <- x@config
@@ -272,6 +281,7 @@ setMethod(
     simple = TRUE,
     theta_segment = "Estimated",
     color_final = "blue",
+    segment = NULL,
     ...) {
 
     if (!type == "info") {
@@ -334,6 +344,9 @@ setMethod(
     simple = FALSE,
     theta_segment = "Estimated",
     color_final = "blue",
+    segment = NULL,
+    rmse = FALSE,
+    use_segment_label = TRUE,
     ...) {
 
     if (type == "audit") {
@@ -676,6 +689,9 @@ setMethod(
     simple = FALSE,
     theta_segment = "Estimated",
     color_final = "blue",
+    segment = NULL,
+    rmse = FALSE,
+    use_segment_label = TRUE,
     ...) {
 
     if (!type %in% c("audit", "shadow", "info", "score", "exposure")) {
@@ -814,6 +830,7 @@ setMethod(
       cut_lower     <- segment_cut[1:n_segment]
       cut_upper     <- segment_cut[2:(n_segment + 1)]
       segment_label <- character(n_segment)
+
       for (k in 1:n_segment) {
         if (k < n_segment) {
           segment_label[k] <- sprintf("(%s,%s]", cut_lower[k], cut_upper[k])
@@ -821,14 +838,18 @@ setMethod(
           segment_label[k] <- sprintf("(%s,%s)", cut_lower[k], cut_upper[k])
         }
       }
+
       theta_segment_index <- numeric(nj)
       theta_segment_index <- find_segment(theta_value, segment_cut)
+
       segment_n    <- numeric(n_segment)
       segment_dist <- table(theta_segment_index)
       segment_n[as.numeric(names(segment_dist))] <- segment_dist
       segment_index_table <- matrix(NA, nj, x@constraints@test_length)
+
       usage_matrix       <- x@usage_matrix
       usage_matrix_final <- x@usage_matrix
+
       for (j in 1:nj) {
         administered_items <- x@output[[j]]@administered_item_index
         pos_item_outside_of_segment <- x@output[[j]]@theta_segment_index != theta_segment_index[j]
@@ -836,6 +857,7 @@ setMethod(
         usage_matrix_final[j, idx_item_outside_of_segment] <- FALSE
         segment_index_table[j, ] <- x@output[[j]]@theta_segment_index
       }
+
       ## visited segments across item positions and each examinee
       segment_freq <- matrix(0, n_segment, n_segment)
       for (i in 1:x@constraints@test_length) {
@@ -859,6 +881,7 @@ setMethod(
       exposure_rate_final         <- colSums(usage_matrix_final) / nj
       item_exposure_rate          <- exposure_rate[1:ni]
       item_exposure_rate_final    <- exposure_rate_final[1:ni]
+
       if (x@constraints@set_based) {
         stim_exposure_rate        <- exposure_rate[(ni + 1):nv][x@constraints@stimulus_index_by_item]
         stim_exposure_rate_final  <- exposure_rate_final[(ni + 1):nv][x@constraints@stimulus_index_by_item]
@@ -904,46 +927,74 @@ setMethod(
         stim_exposure_rate_segment_final <- NULL
       }
 
-      old_oma <- par()$oma
-      old_mar <- par()$mar
-      on.exit({
-        close_dev <- ifelse(dev.cur() == 1, TRUE, FALSE)
-        par(oma = old_oma, mar = old_mar)
-        if (close_dev) {
-          dev.off()
-        }
-      })
-      par(oma = c(3, 3, 0, 0), mar = c(3, 3, 2, 2))
+      if (is.null(segment)) {
 
-      plotER(
-        item_exposure_rate, item_exposure_rate_final, stim_exposure_rate, x@constraints@stimulus_index_by_item,
-        max_rate = max_rate, title = "Overall", color = color, color_final = color_final, simple = TRUE)
-      for (k in 1:n_segment) {
-        plotER(
-          item_exposure_rate_segment[[k]], item_exposure_rate_segment_final[[k]], stim_exposure_rate_segment[[k]], x@constraints@stimulus_index_by_item,
-          max_rate = max_rate, title = segment_label[k], color = color, color_final = color_final, simple = TRUE)
+        segment <- c(0, 1:n_segment)
+        use_axis_labels <- TRUE
+
+        old_oma <- par()$oma
+        old_mar <- par()$mar
+        on.exit({
+          close_dev <- ifelse(dev.cur() == 1, TRUE, FALSE)
+          par(oma = old_oma, mar = old_mar)
+          if (close_dev) {
+            dev.off()
+          }
+        })
+        par(oma = c(3, 3, 0, 0), mar = c(3, 3, 2, 2))
+
+      } else {
+
+        use_axis_labels <- FALSE
+
       }
 
-      mtext(text = "Item", side = 1, line = 0, outer = T)
-      mtext(text = "Exposure Rate", side = 2, line = 0, outer = T)
+      for (k in segment) {
+        if (k == 0) {
+          plotER(
+            item_exposure_rate, item_exposure_rate_final, stim_exposure_rate, x@constraints@stimulus_index_by_item,
+            max_rate = max_rate, title = switch(2 - use_segment_label, "Overall", NULL),
+            color = color, color_final = color_final, simple = TRUE
+          )
+          if (rmse) {
+            rmse_value <- sqrt(mean((x@final_theta_est - x@true_theta) ** 2))
+            text(0, 1, sprintf("RMSE = %1.3f", rmse_value), adj = c(0, 1))
+          }
+        } else {
+          plotER(
+            item_exposure_rate_segment[[k]], item_exposure_rate_segment_final[[k]], stim_exposure_rate_segment[[k]], x@constraints@stimulus_index_by_item,
+            max_rate = max_rate, title = switch(2 - use_segment_label, segment_label[k], NULL),
+            color = color, color_final = color_final, simple = TRUE
+          )
+          if (rmse) {
+            rmse_value <- sqrt(mean((x@final_theta_est[theta_segment_index == k] - x@true_theta[theta_segment_index == k]) ** 2))
+            text(0, 1, sprintf("RMSE = %1.3f", rmse_value), adj = c(0, 1))
+          }
+        }
+      }
 
-      par(oma = old_oma, mar = old_mar)
+      if (use_axis_labels) {
+        mtext(text = "Item"         , side = 1, line = 0, outer = TRUE)
+        mtext(text = "Exposure Rate", side = 2, line = 0, outer = TRUE)
+        par(oma = old_oma, mar = old_mar)
+      }
+
       p <- recordPlot()
       dev.off()
 
       out <- new("exposure_rate_plot")
-      out@plot = p
-      out@item_exposure_rate         = item_exposure_rate
-      out@item_exposure_rate_segment = item_exposure_rate_segment
-      out@item_exposure_rate_segment_final = item_exposure_rate_segment_final
-      out@stim_exposure_rate               = stim_exposure_rate
-      out@stim_exposure_rate_segment       = stim_exposure_rate_segment
-      out@stim_exposure_rate_segment_final = stim_exposure_rate_segment_final
-      out@segment_rate_table = segment_rate_table
-      out@n_segment = n_segment
-      out@segment_n = segment_n
-      out@segment_cut = segment_cut
-      out@segment_label = segment_label
+      out@plot <- p
+      out@item_exposure_rate         <- item_exposure_rate
+      out@item_exposure_rate_segment <- item_exposure_rate_segment
+      out@item_exposure_rate_segment_final <- item_exposure_rate_segment_final
+      out@stim_exposure_rate               <- stim_exposure_rate
+      out@stim_exposure_rate_segment       <- stim_exposure_rate_segment
+      out@stim_exposure_rate_segment_final <- stim_exposure_rate_segment_final
+      out@segment_rate_table <- segment_rate_table
+      out@n_segment <- n_segment
+      out@segment_n <- segment_n
+      out@segment_cut <- segment_cut
+      out@segment_label <- segment_label
 
       return(out)
     }

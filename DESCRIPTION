@@ -2,8 +2,8 @@ Package: TestDesign
 Type: Package
 Title: Optimal Test Design Approach to Fixed and Adaptive Test
         Construction
-Version: 1.2.5
-Date: 2021-07-11
+Version: 1.2.6
+Date: 2021-09-10
 Authors@R: c(
     person("Seung W.", "Choi",
         email = "schoi@austin.utexas.edu",
@@ -29,7 +29,7 @@ Suggests: lpsymphony, Rsymphony, gurobi, Rglpk, mirt, progress, shiny,
         shinythemes, shinyWidgets, shinyjs, DT, knitr, rmarkdown,
         kableExtra, testthat (>= 2.1.0), pkgdown, pkgload
 LinkingTo: Rcpp, RcppArmadillo
-RoxygenNote: 7.1.1
+RoxygenNote: 7.1.2
 Encoding: UTF-8
 LazyData: true
 VignetteBuilder: knitr
@@ -44,11 +44,12 @@ Collate: 'RcppExports.R' 'import.R' 'extensions.R' 'item_class.R'
         'solver_functions.R' 'helper_functions.R'
         'item_pool_cluster_operators.R' 'other_functions.R'
         'plot_functions.R' 'summary_class.R' 'print_functions.R'
-        'runshiny.R' 'summary_functions.R' 'show_functions.R'
-        'test_operators.R' 'theta_functions.R' 'xdata_functions.R'
+        'runshiny.R' 'shadowtest_functions.R' 'summary_functions.R'
+        'show_functions.R' 'test_operators.R' 'theta_functions.R'
+        'xdata_functions.R'
 NeedsCompilation: yes
-Packaged: 2021-07-11 16:53:12 UTC; chois1
+Packaged: 2021-09-21 14:28:51 UTC; chois1
 Author: Seung W. Choi [aut, cre] (<https://orcid.org/0000-0003-4777-5420>),
   Sangdon Lim [aut] (<https://orcid.org/0000-0002-2988-014X>)
 Repository: CRAN
-Date/Publication: 2021-07-12 07:50:09 UTC
+Date/Publication: 2021-09-22 08:40:11 UTC

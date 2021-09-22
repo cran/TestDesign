@@ -2,43 +2,105 @@
 NULL
 
 #' @noRd
-getExposureConstants <- function(exposure_control) {
+doExposureControl <- function(
+  exposure_record, segment_record,
+  o, j,
+  current_theta,
+  eligible_flag,
+  config,
+  constants
+) {
 
-  o <- list()
-
-  if (toupper(exposure_control$method) %in% c("ELIGIBILITY", "BIGM", "BIGM-BAYESIAN")) {
-    o$use_eligibility_control <- TRUE
-  } else {
-    o$use_eligibility_control <- FALSE
+  if (!constants$use_eligibility_control) {
+    return(exposure_record)
   }
 
-  o$max_exposure_rate   <- exposure_control$max_exposure_rate
-  o$fading_factor       <- exposure_control$fading_factor
-  o$acceleration_factor <- exposure_control$acceleration_factor
-  o$n_segment           <- exposure_control$n_segment
-  o$segment_cut         <- exposure_control$segment_cut
-  o$cut_lower           <- o$segment_cut[(1:o$n_segment)]
-  o$cut_upper           <- o$segment_cut[(1:o$n_segment) + 1]
+  segment_of                 <- getSegmentOf(o, constants)
+  segment_record             <- updateSegmentRecord(segment_record, segment_of, j)
+  eligible_flag_in_final_theta_segment   <- getEligibleFlagInSegment(eligible_flag, segment_of$final_theta_est, constants)
 
-  if (!length(o$max_exposure_rate) %in% c(1, o$n_segment)) {
-    stop("length(max_exposure_rate) must be 1 or n_segment")
+  if (constants$exposure_control_method %in% c("ELIGIBILITY")) {
+
+    segments_to_apply <- getSegmentsToApply(constants$n_segment, segment_of$final_theta_est)
+    exposure_record   <- applyFading(exposure_record, segments_to_apply, constants)
+    segment_prob      <- 1
+    segment_feasible  <- unique(o@theta_segment_index[o@shadow_test_feasible == TRUE])
+    theta_is_feasible <- segment_of$final_theta_est %in% segment_feasible
+    exposure_record   <- incrementN(exposure_record, segments_to_apply, segment_prob, constants)
+    exposure_record   <- incrementPhi(exposure_record, segments_to_apply, segment_prob, theta_is_feasible)
+    exposure_record   <- incrementAlpha(exposure_record, segments_to_apply, segment_prob, o, constants)
+    exposure_record   <- incrementRho(exposure_record, segments_to_apply, segment_prob, eligible_flag, theta_is_feasible, constants)
+    exposure_record   <- adjustAlphaToReduceSpike(exposure_record, segment_prob, segment_of$visited, eligible_flag_in_final_theta_segment, o, constants)
+    exposure_record   <- updateEligibilityRates(exposure_record, constants)
+    exposure_record   <- clipEligibilityRates(exposure_record, constants)
+    return(exposure_record)
+
   }
 
-  return(o)
+  if (constants$exposure_control_method %in% c("BIGM")) {
+
+    segments_to_apply <- getSegmentsToApply(constants$n_segment, segment_of$final_theta_est)
+    exposure_record   <- applyFading(exposure_record, segments_to_apply, constants)
+    segment_prob      <- 1
+    exposure_record   <- incrementN(exposure_record, segments_to_apply, segment_prob, constants)
+  # exposure_record   <- incrementPhi(exposure_record, segments_to_apply, segment_prob, TRUE) # is not called for the purpose of code optimization; see comments in incrementPhi()
+    exposure_record   <- incrementAlpha(exposure_record, segments_to_apply, segment_prob, o, constants)
+    exposure_record   <- incrementRho(exposure_record, segments_to_apply, segment_prob, eligible_flag, TRUE, constants)
+    exposure_record   <- adjustAlphaToReduceSpike(exposure_record, segment_prob, segment_of$visited, eligible_flag_in_final_theta_segment, o, constants)
+    exposure_record   <- updateEligibilityRates(exposure_record, constants)
+    exposure_record   <- clipEligibilityRates(exposure_record, constants)
+    return(exposure_record)
+
+  }
+
+  if (constants$exposure_control_method %in% c("BIGM-BAYESIAN")) {
+
+    segments_to_apply <- getSegmentsToApply(constants$n_segment, 1:constants$n_segment)
+    exposure_record   <- applyFading(exposure_record, segments_to_apply, constants)
+    segment_prob      <- getSegmentProb(current_theta$posterior_sample, constants)
+    exposure_record   <- incrementN(exposure_record, segments_to_apply, segment_prob, constants)
+  # exposure_record   <- incrementPhi(exposure_record, segments_to_apply, segment_prob, TRUE) # is not called for the purpose of code optimization; see comments in incrementPhi()
+    exposure_record   <- incrementAlpha(exposure_record, segments_to_apply, segment_prob, o, constants)
+    exposure_record   <- incrementRho(exposure_record, segments_to_apply, segment_prob, eligible_flag, TRUE, constants)
+    exposure_record   <- adjustAlphaToReduceSpike(exposure_record, segment_prob, segment_of$visited, eligible_flag_in_final_theta_segment, o, constants)
+    exposure_record   <- updateEligibilityRates(exposure_record, constants)
+    exposure_record   <- clipEligibilityRates(exposure_record, constants)
+    return(exposure_record)
+
+  }
 
 }
 
 #' @noRd
-initializeSegmentRecord <- function(exposure_constants, constants) {
+doExposureControlDetailed <- function(
+  exposure_record_detailed,
+  j,
+  exposure_record,
+  config,
+  constants
+) {
+
+  if (!config@exposure_control$diagnostic_stats) {
+    return(exposure_record_detailed)
+  }
+
+  exposure_record_detailed <- updateExposureRecordSegmentwise(
+    exposure_record_detailed, j, exposure_record, constants
+  )
+
+}
+
+#' @noRd
+initializeSegmentRecord <- function(constants) {
 
   o <- list()
 
-  if (!exposure_constants$use_eligibility_control) {
+  if (!constants$use_eligibility_control) {
     return(o)
   }
 
-  o$freq_true  <- numeric(exposure_constants$n_segment)
-  o$freq_est   <- numeric(exposure_constants$n_segment)
+  o$freq_true  <- numeric(constants$n_segment)
+  o$freq_est   <- numeric(constants$n_segment)
   o$count_true <- numeric(constants$nj)
   o$count_est  <- numeric(constants$nj)
 
@@ -47,27 +109,27 @@ initializeSegmentRecord <- function(exposure_constants, constants) {
 }
 
 #' @noRd
-initializeExposureRecord <- function(exposure_control, exposure_constants, constants) {
+initializeExposureRecord <- function(exposure_control, constants) {
 
   o <- list()
 
   ni <- constants$ni
   ns <- constants$ns
-  n_segment <- exposure_constants$n_segment
+  n_segment <- constants$n_segment
 
   o$n_jk  <- numeric(n_segment)
   if (toupper(exposure_control$method) == "ELIGIBILITY") {
     o$f_jk  <- numeric(n_segment)
   }
 
-  if (exposure_constants$fading_factor != 1) {
+  if (constants$fading_factor != 1) {
     o$n_jk_nofade  <- o$n_jk
   }
 
   o$a_ijk <- matrix(0, n_segment, ni)
   o$r_ijk <- matrix(0, n_segment, ni)
   o$p_e_i  <- matrix(1, n_segment, ni)
-  if (exposure_constants$fading_factor != 1) {
+  if (constants$fading_factor != 1) {
     o$a_ijk_nofade <- o$a_ijk
     o$r_ijk_nofade <- o$r_ijk
   }
@@ -79,7 +141,7 @@ initializeExposureRecord <- function(exposure_control, exposure_constants, const
   o$a_sjk <- matrix(0, n_segment, ns)
   o$r_sjk <- matrix(0, n_segment, ns)
   o$pe_s  <- matrix(1, n_segment, ns)
-  if (exposure_constants$fading_factor != 1) {
+  if (constants$fading_factor != 1) {
     o$a_sjk_nofade <- o$a_sjk
     o$r_sjk_nofade <- o$r_sjk
   }
@@ -108,14 +170,14 @@ getInitialEligibilityStats <- function(o, initial_stats, constants) {
 }
 
 #' @noRd
-initializeExposureRecordSegmentwise <- function(exposure_constants, constants) {
+initializeExposureRecordSegmentwise <- function(constants) {
 
   o <- list()
   ni <- constants$ni
   ns <- constants$ns
   nj <- constants$nj
-  n_segment     <- exposure_constants$n_segment
-  fading_factor <- exposure_constants$fading_factor
+  n_segment     <- constants$n_segment
+  fading_factor <- constants$fading_factor
 
   if (!constants$set_based) {
     o$a_g_i <- replicate(n_segment, matrix(0, nrow = nj, ncol = ni), simplify = FALSE)
@@ -144,11 +206,11 @@ initializeExposureRecordSegmentwise <- function(exposure_constants, constants) {
 }
 
 #' @noRd
-getSegmentOf <- function(x, exposure_constants) {
+getSegmentOf <- function(x, constants) {
 
   o <- list()
 
-  o$final_theta_est   <- find_segment(x@final_theta_est, exposure_constants$segment_cut)
+  o$final_theta_est   <- find_segment(x@final_theta_est, constants$segment_cut)
 
   tmp                 <- sort(unique(x@theta_segment_index))
   o$visited           <- tmp[tmp != o$final_theta_est]
@@ -157,7 +219,7 @@ getSegmentOf <- function(x, exposure_constants) {
     return(o)
   }
 
-  o$true_theta        <- find_segment(x@true_theta, exposure_constants$segment_cut)
+  o$true_theta        <- find_segment(x@true_theta, constants$segment_cut)
   return(o)
 
 }
@@ -191,10 +253,10 @@ getSegmentsToApply <- function(n_segment, segments) {
 }
 
 #' @noRd
-updateExposureRecordSegmentwise <- function(o, j, x, exposure_constants, constants) {
+updateExposureRecordSegmentwise <- function(o, j, x, constants) {
 
-  n_segment     <- exposure_constants$n_segment
-  fading_factor <- exposure_constants$fading_factor
+  n_segment     <- constants$n_segment
+  fading_factor <- constants$fading_factor
 
   ni <- constants$ni
   for (g in 1:n_segment) {
@@ -221,5 +283,57 @@ updateExposureRecordSegmentwise <- function(o, j, x, exposure_constants, constan
   }
 
   return(o)
+
+}
+
+#' @noRd
+initializeUsageMatrix <- function(constants) {
+
+  if (!constants$set_based) {
+    o <- matrix(FALSE, nrow = constants$nj, ncol = constants$ni)
+    return(o)
+  }
+  if (constants$set_based) {
+    o <- matrix(FALSE, nrow = constants$nj, ncol = constants$nv)
+    return(o)
+  }
+
+}
+
+#' @noRd
+updateUsageMatrix <- function(o, j, x, constants) {
+
+  o[j, x@administered_item_index] <- TRUE
+
+  if (!constants$set_based) {
+    return(o)
+  }
+
+  o[j, constants$ni + x@administered_stimulus_index] <- TRUE
+
+  return(o)
+
+}
+
+#' @noRd
+aggregateUsageMatrix <- function(usage_matrix, constants, constraints) {
+
+  if (!constants$set_based) {
+    o <- matrix(NA, constants$ni, 2)
+    colnames(o) <- c("Item", "Item ER")
+    o[, 1] <- 1:constants$ni
+    o[, 2] <- apply(usage_matrix, 2, sum) / constants$nj
+    return(o)
+  }
+  if (constants$set_based) {
+    o <- matrix(NA, constants$ni, 4)
+    colnames(o) <- c("Item", "Stimulus", "Item ER", "Stimulus ER")
+    x <- apply(usage_matrix, 2, sum) / constants$nj
+    o[, 1] <- 1:constants$ni
+    o[, 2] <- constraints@stimulus_index_by_item
+    o[, 3] <- x[1:constants$ni]
+    o[, 4] <- x[(constants$ni + 1):constants$nv][constraints@stimulus_index_by_item]
+    return(o)
+  }
 
 }

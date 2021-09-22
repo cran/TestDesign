@@ -15,7 +15,8 @@ Shadow(
   exclude = NULL,
   include_items_for_estimation = NULL,
   force_solver = FALSE,
-  session = NULL
+  session = NULL,
+  seed = NULL
 )
 
 \S4method{Shadow}{config_Shadow}(
@@ -28,7 +29,8 @@ Shadow(
   exclude = NULL,
   include_items_for_estimation = NULL,
   force_solver = FALSE,
-  session = NULL
+  session = NULL,
+  seed = NULL
 )
 }
 \arguments{
@@ -55,6 +57,8 @@ Shadow(
 \item{force_solver}{if \code{TRUE}, do not check whether the solver is one of recommended solvers for doing set-based assembly. Has no effect on discrete assembly. (default = \code{FALSE})}
 
 \item{session}{(optional) used to communicate with Shiny app \code{\link{TestDesign}}.}
+
+\item{seed}{(optional) used to perform data generation internally.}
 }
 \value{
 \code{\link{Shadow}} returns an \code{\linkS4class{output_Shadow_all}} object containing assembly results.
@@ -71,15 +75,15 @@ solution@output
 \references{
 van der Linden, W. J., Reese, L. M. (1998).
 A model for optimal constrained adaptive testing.
-\emph{Applied Psychological Measurement, 22}, 259–270.
+\emph{Applied Psychological Measurement, 22}, 259-270.
 
 van der Linden, W. J. (1998).
 Optimal assembly of psychological and educational tests.
-\emph{Applied Psychological Measurement, 22}, 195–211.
+\emph{Applied Psychological Measurement, 22}, 195-211.
 
 van der Linden, W. J. (2000).
 Optimal assembly of tests with item sets.
-\emph{Applied Psychological Measurement, 24}, 225–240.
+\emph{Applied Psychological Measurement, 24}, 225-240.
 
 van der Linden, W. J. (2005).
 \emph{Linear models for optimal test design.}
