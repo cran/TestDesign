@@ -34,11 +34,13 @@ NULL
 #' @param ylim (optional) the y-axis plot range. Used in most plot types.
 #' @param z_ci used in \code{\linkS4class{output_Shadow}} and \code{\linkS4class{output_Shadow_all}} with \code{type = 'audit'}. The range to use for confidence intervals. (default = \code{1.96})
 #' @param simple used in \code{\linkS4class{output_Shadow}} and \code{\linkS4class{output_Shadow_all}} with \code{type = 'shadow'}. If \code{TRUE}, simplify the chart by hiding unused items.
-#' @param theta_segment used in \code{\linkS4class{output_Shadow_all}} with \code{type = 'exposure'}. The type of theta to determine exposure segments. Accepts \code{Estimated} or \code{True}. (default = \code{Estimated})
+#' @param theta_type used in \code{\linkS4class{output_Shadow_all}} with \code{type = 'exposure'}. The type of theta to determine exposure segments. Accepts \code{Estimated} or \code{True}. (default = \code{Estimated})
 #' @param color_final used in \code{\linkS4class{output_Shadow_all}} with \code{type = 'exposure'}. The color of item-wise exposure rates, only counting the items administered in the final theta segment as exposed.
 #' @param segment used in \code{\linkS4class{output_Shadow_all}} with \code{type = 'exposure'}. (optional) The segment index to draw the plot. Leave empty to use all segments.
 #' @param rmse used in \code{\linkS4class{output_Shadow_all}} with \code{type = 'exposure'}. If \code{TRUE}, display the RMSE value for each segment. (default = \code{FALSE})
 #' @param use_segment_label used in \code{\linkS4class{output_Shadow_all}} with \code{type = 'exposure'}. If \code{TRUE}, display the segment label for each segment. (default = \code{TRUE})
+#' @param use_par if \code{FALSE}, graphical parameters are not overridden inside the function. (default = \code{TRUE})
+#' @param theta_segment (deprecated) use \code{theta_type} argument instead.
 #' @param ... arguments to pass onto \code{\link[graphics]{plot}}.
 #'
 #' @examples
@@ -90,11 +92,12 @@ setMethod(
     color = "blue",
     z_ci = 1.96,
     simple = TRUE,
-    theta_segment = "Estimated",
+    theta_type = "Estimated",
     color_final = "blue",
     segment = NULL,
     rmse = FALSE,
     use_segment_label = TRUE,
+    use_par = TRUE,
     ...) {
 
     if (!is.null(select)) {
@@ -144,9 +147,7 @@ setMethod(
 
     box()
 
-    p <- recordPlot()
-    dev.off()
-    return(p)
+    return(invisible(NULL))
 
   }
 )
@@ -170,11 +171,7 @@ setMethod(
     color = "blue",
     z_ci = 1.96,
     simple = TRUE,
-    theta_segment = "Estimated",
-    color_final = "blue",
-    segment = NULL,
-    rmse = FALSE,
-    use_segment_label = TRUE,
+    use_par = TRUE,
     ...) {
 
     config      <- x@config
@@ -253,9 +250,7 @@ setMethod(
 
     box()
 
-    p <- recordPlot()
-    dev.off()
-    return(p)
+    return(invisible(NULL))
 
   }
 )
@@ -279,9 +274,7 @@ setMethod(
     color = "blue",
     z_ci = 1.96,
     simple = TRUE,
-    theta_segment = "Estimated",
-    color_final = "blue",
-    segment = NULL,
+    use_par = TRUE,
     ...) {
 
     if (!type == "info") {
@@ -317,9 +310,7 @@ setMethod(
 
     box()
 
-    p <- recordPlot()
-    dev.off()
-    return(p)
+    return(invisible(NULL))
 
   }
 )
@@ -342,28 +333,23 @@ setMethod(
     color = "blue",
     z_ci = 1.96,
     simple = FALSE,
-    theta_segment = "Estimated",
-    color_final = "blue",
-    segment = NULL,
-    rmse = FALSE,
-    use_segment_label = TRUE,
+    theta_type = "Estimated",
+    use_par = TRUE,
     ...) {
 
     if (type == "audit") {
+
+      if (use_par) {
+        old_par <- par(no.readonly = TRUE)
+        on.exit({
+          par(old_par)
+        })
+        par(mar = c(2, 3, 1, 1) + 0.1)
+      }
+
       n_items <- length(x@administered_item_index)
       min_theta <- theta_range[1]
       max_theta <- theta_range[2]
-
-      old_mar   <- par()$mar
-      old_mfrow <- par()$mfrow
-      on.exit({
-        close_dev <- ifelse(dev.cur() == 1, TRUE, FALSE)
-        par(mar = old_mar, mfrow = old_mfrow)
-        if (close_dev) {
-          dev.off()
-        }
-      })
-      par(mar = c(2, 3, 1, 1) + 0.1)
 
       layout(rbind(c(1, 1), c(1, 1), c(1, 1), c(1, 1), c(2, 2)))
 
@@ -426,28 +412,22 @@ setMethod(
 
       }
 
-      par(mar = old_mar, mfrow = old_mfrow)
-      p <- recordPlot()
-      dev.off()
-      return(p)
+      return(invisible(NULL))
 
     }
 
     if (type == "shadow") {
 
+      if (use_par) {
+        old_par <- par(no.readonly = TRUE)
+        on.exit({
+          par(old_par)
+        })
+        par(mar = c(2, 3, 1, 1) + 0.1, mfrow = c(1, 1))
+      }
+
       test_length  <- x@test_length_constraints
       ni_pool      <- x@ni_pool
-
-      old_mar   <- par()$mar
-      old_mfrow <- par()$mfrow
-      on.exit({
-        close_dev <- ifelse(dev.cur() == 1, TRUE, FALSE)
-        par(mar = old_mar, mfrow = old_mfrow)
-        if (close_dev) {
-          dev.off()
-        }
-      })
-      par(mar = c(2, 3, 1, 1) + 0.1, mfrow = c(1, 1))
 
       max_position <- sum(!is.na(x@administered_item_resp))
 
@@ -658,10 +638,7 @@ setMethod(
 
       }
 
-      par(mar = old_mar, mfrow = old_mfrow)
-      p <- recordPlot()
-      dev.off()
-      return(p)
+      return(invisible(NULL))
 
     }
 
@@ -687,316 +664,425 @@ setMethod(
     color = "blue",
     z_ci = 1.96,
     simple = FALSE,
-    theta_segment = "Estimated",
+    theta_type = "Estimated",
     color_final = "blue",
     segment = NULL,
     rmse = FALSE,
     use_segment_label = TRUE,
+    use_par = TRUE,
+    theta_segment = NULL,
     ...) {
 
+    if (!missing("theta_segment")){
+      warning("argument 'theta_segment' is deprecated. Use 'theta_type' instead.")
+      theta_type <- theta_segment
+    }
     if (!type %in% c("audit", "shadow", "info", "score", "exposure")) {
       stop("plot(output_Shadow_all): 'type' must be 'audit', 'shadow', 'info', 'score', or 'exposure'")
     }
 
     if (type == "info") {
-
-      o <- x@output[[examinee_id]]
-      if (is.null(position)) {
-        i <- o@administered_item_index
-        txt <- "administered items"
-      } else {
-        i <- o@shadow_test[[position]]$i
-        txt <- sprintf("shadow test at position %s", position)
-      }
-
-      p <- x@pool[i]
-      if (toupper(info_type) == "FISHER") {
-        y <- calcFisher(p, theta)
-        y <- rowSums(y)
-      } else {
-        stop("Invalid info_type specified")
-      }
-
-      if (is.null(ylim)) {
-        ylim <- c(0, max(y))
-      }
-
-      plot(
-        theta, y, xlab = "Theta", ylab = "Information",
-        main = sprintf("Examinee ID: %s (%s)", examinee_id, txt),
-        type = "n", ylim = ylim)
-
-      grid()
-
-      lines(theta, y, col = color)
-
-      legend_label = c()
-      legend_lty   = c()
-      legend_col   = c()
-
-      if (!is.null(o@true_theta)) {
-        abline(v = o@true_theta, col = "red", lty = 1)
-        legend_label <- c(legend_label, sprintf("True theta = %.3f", o@true_theta))
-        legend_lty   <- c(legend_lty, 1)
-        legend_col   <- c(legend_col, "red")
-      }
-
-      abline(v = o@final_theta_est, col = "red", lty = 2)
-      legend_label <- c(legend_label, sprintf("Final theta = %.3f", o@final_theta_est))
-      legend_lty   <- c(legend_lty, 2)
-      legend_col   <- c(legend_col, "red")
-
-      if (!is.null(position)) {
-        abline(v = o@interim_theta_est[position], col = "black", lty = 1)
-        legend_label <- c(legend_label, sprintf("Interim @ %s = %.3f", position, o@interim_theta_est[position]))
-        legend_lty   <- c(legend_lty, 1)
-        legend_col   <- c(legend_col, "black")
-
-        if (position > 1) {
-          abline(v = o@interim_theta_est[position - 1], col = "black", lty = 2)
-          legend_label <- c(legend_label, sprintf("Interim @ %s = %.3f", position - 1, o@interim_theta_est[position - 1]))
-          legend_lty   <- c(legend_lty, 2)
-          legend_col   <- c(legend_col, "black")
-        }
-        if (position == 1) {
-          abline(v = o@initial_theta_est, col = "black", lty = 2)
-          legend_label <- c(legend_label, sprintf("Initial theta = %.3f", o@initial_theta_est))
-          legend_lty   <- c(legend_lty, 2)
-          legend_col   <- c(legend_col, "black")
-        }
-      }
-
-      legend(
-        "topleft",
-        legend = legend_label,
-        lty    = legend_lty,
-        col    = legend_col
+      plotShadowInfo(
+        x, examinee_id, position,
+        info_type,
+        ylim, theta,
+        color,
+        use_par,
+        ...
       )
-
-      box()
-
-      p <- recordPlot()
-      dev.off()
-      return(p)
-
+      return(invisible(NULL))
     }
 
     if (type == "audit") {
-
-      if (!all(examinee_id %in% 1:length(x@output))) {
-        stop("plot(output_Shadow_all): 'examinee_id' out of bounds")
-      }
-      p <- plot(
-        x@output[[examinee_id]],
-        type = "audit",
-        theta_range = theta_range,
-        z_ci = z_ci,
+      plotShadowAudit(
+        x, examinee_id,
+        theta_range,
+        z_ci,
+        use_par,
         ...
       )
-
-      return(p)
-
-    } else if (type == "shadow") {
-
-      if (!all(examinee_id %in% 1:length(x@output))) {
-        stop("plot(output_Shadow_all): 'examinee_id' out of bounds")
-      }
-      p <- plot(
-        x@output[[examinee_id]],
-        type = "shadow",
-        simple = simple,
-        ...
-      )
-
-      return(p)
-
-    } else if (type == "exposure") {
-
-      if (toupper(theta_segment) == "TRUE") {
-        theta_value <- x@true_theta
-        nj          <- length(theta_value)
-      } else if (toupper(theta_segment) == "ESTIMATED") {
-        theta_value <- x@final_theta_est
-        nj          <- length(theta_value)
-      } else {
-        stop("plot(output_Shadow_all): 'theta_segment' must be 'estimated' or 'true'")
-      }
-
-      ni <- x@pool@ni
-      nv <- ncol(x@usage_matrix)
-      max_rate      <- x@config@exposure_control$max_exposure_rate
-      segment_cut   <- x@config@exposure_control$segment_cut
-      n_segment     <- x@config@exposure_control$n_segment
-      cut_lower     <- segment_cut[1:n_segment]
-      cut_upper     <- segment_cut[2:(n_segment + 1)]
-      segment_label <- character(n_segment)
-
-      for (k in 1:n_segment) {
-        if (k < n_segment) {
-          segment_label[k] <- sprintf("(%s,%s]", cut_lower[k], cut_upper[k])
-        } else {
-          segment_label[k] <- sprintf("(%s,%s)", cut_lower[k], cut_upper[k])
-        }
-      }
-
-      theta_segment_index <- numeric(nj)
-      theta_segment_index <- find_segment(theta_value, segment_cut)
-
-      segment_n    <- numeric(n_segment)
-      segment_dist <- table(theta_segment_index)
-      segment_n[as.numeric(names(segment_dist))] <- segment_dist
-      segment_index_table <- matrix(NA, nj, x@constraints@test_length)
-
-      usage_matrix       <- x@usage_matrix
-      usage_matrix_final <- x@usage_matrix
-
-      for (j in 1:nj) {
-        administered_items <- x@output[[j]]@administered_item_index
-        pos_item_outside_of_segment <- x@output[[j]]@theta_segment_index != theta_segment_index[j]
-        idx_item_outside_of_segment <- administered_items[pos_item_outside_of_segment]
-        usage_matrix_final[j, idx_item_outside_of_segment] <- FALSE
-        segment_index_table[j, ] <- x@output[[j]]@theta_segment_index
-      }
-
-      ## visited segments across item positions and each examinee
-      segment_freq <- matrix(0, n_segment, n_segment)
-      for (i in 1:x@constraints@test_length) {
-        interim_segment_dist <- factor(segment_index_table[, i], levels = 1:n_segment)
-        segment_table <- tapply(interim_segment_dist, theta_segment_index, table)
-        for (s in 1:length(segment_table)) {
-          idx_r <- as.numeric(names(segment_table)[s])
-          idx_c <- as.numeric(names(segment_table[[s]]))
-          segment_freq[idx_r, idx_c] <- segment_freq[idx_r, idx_c] + segment_table[[s]]
-        }
-      }
-      segment_rate                <- segment_freq / segment_n
-      segment_rate_table          <- data.frame(
-        segment_class = factor(rep(segment_label, rep(n_segment, n_segment)), levels = segment_label),
-        segment = rep(1:n_segment, n_segment),
-        avg_visit = matrix(
-          t(segment_rate),
-          nrow = n_segment^2, ncol = 1)
-      )
-      exposure_rate               <- colSums(usage_matrix) / nj
-      exposure_rate_final         <- colSums(usage_matrix_final) / nj
-      item_exposure_rate          <- exposure_rate[1:ni]
-      item_exposure_rate_final    <- exposure_rate_final[1:ni]
-
-      if (x@constraints@set_based) {
-        stim_exposure_rate        <- exposure_rate[(ni + 1):nv][x@constraints@stimulus_index_by_item]
-        stim_exposure_rate_final  <- exposure_rate_final[(ni + 1):nv][x@constraints@stimulus_index_by_item]
-      } else {
-        stim_exposure_rate        <- NULL
-        stim_exposure_rate_final  <- NULL
-      }
-      exposure_rate_segment       <- vector("list", n_segment)
-      exposure_rate_segment_final <- vector("list", n_segment)
-      names(exposure_rate_segment)       <- segment_label
-      names(exposure_rate_segment_final) <- segment_label
-      for (k in 1:n_segment) {
-        if (segment_n[k] > 2) {
-          exposure_rate_segment[[k]]       <- colMeans(usage_matrix[theta_segment_index == k, ])
-          exposure_rate_segment_final[[k]] <- colMeans(usage_matrix_final[theta_segment_index == k, ])
-        }
-        if (is.null(exposure_rate_segment[[k]])) {
-          exposure_rate_segment[[k]] <- numeric(nv)
-        } else if (any(is.nan(exposure_rate_segment[[k]]))) {
-          exposure_rate_segment[[k]][is.nan(exposure_rate_segment[[k]])] <- 0
-        }
-        if (is.null(exposure_rate_segment_final[[k]])) {
-          exposure_rate_segment_final[[k]] <- numeric(nv)
-        } else if (any(is.nan(exposure_rate_segment_final[[k]]))) {
-          exposure_rate_segment_final[[k]][is.nan(exposure_rate_segment_final[[k]])] <- 0
-        }
-      }
-      item_exposure_rate_segment       <- exposure_rate_segment
-      item_exposure_rate_segment_final <- exposure_rate_segment_final
-      for (k in 1:n_segment) {
-        item_exposure_rate_segment[[k]]       <- item_exposure_rate_segment[[k]][1:ni]
-        item_exposure_rate_segment_final[[k]] <- item_exposure_rate_segment_final[[k]][1:ni]
-      }
-      if (x@constraints@set_based) {
-        stim_exposure_rate_segment       <- exposure_rate_segment
-        stim_exposure_rate_segment_final <- exposure_rate_segment_final
-        for (k in 1:n_segment) {
-          stim_exposure_rate_segment[[k]]       <- stim_exposure_rate_segment[[k]][(ni + 1):nv][x@constraints@stimulus_index_by_item]
-          stim_exposure_rate_segment_final[[k]] <- stim_exposure_rate_segment_final[[k]][(ni + 1):nv][x@constraints@stimulus_index_by_item]
-        }
-      } else {
-        stim_exposure_rate_segment       <- NULL
-        stim_exposure_rate_segment_final <- NULL
-      }
-
-      if (is.null(segment)) {
-
-        segment <- c(0, 1:n_segment)
-        use_axis_labels <- TRUE
-
-        old_oma <- par()$oma
-        old_mar <- par()$mar
-        on.exit({
-          close_dev <- ifelse(dev.cur() == 1, TRUE, FALSE)
-          par(oma = old_oma, mar = old_mar)
-          if (close_dev) {
-            dev.off()
-          }
-        })
-        par(oma = c(3, 3, 0, 0), mar = c(3, 3, 2, 2))
-
-      } else {
-
-        use_axis_labels <- FALSE
-
-      }
-
-      for (k in segment) {
-        if (k == 0) {
-          plotER(
-            item_exposure_rate, item_exposure_rate_final, stim_exposure_rate, x@constraints@stimulus_index_by_item,
-            max_rate = max_rate, title = switch(2 - use_segment_label, "Overall", NULL),
-            color = color, color_final = color_final, simple = TRUE
-          )
-          if (rmse) {
-            rmse_value <- sqrt(mean((x@final_theta_est - x@true_theta) ** 2))
-            text(0, 1, sprintf("RMSE = %1.3f", rmse_value), adj = c(0, 1))
-          }
-        } else {
-          plotER(
-            item_exposure_rate_segment[[k]], item_exposure_rate_segment_final[[k]], stim_exposure_rate_segment[[k]], x@constraints@stimulus_index_by_item,
-            max_rate = max_rate, title = switch(2 - use_segment_label, segment_label[k], NULL),
-            color = color, color_final = color_final, simple = TRUE
-          )
-          if (rmse) {
-            rmse_value <- sqrt(mean((x@final_theta_est[theta_segment_index == k] - x@true_theta[theta_segment_index == k]) ** 2))
-            text(0, 1, sprintf("RMSE = %1.3f", rmse_value), adj = c(0, 1))
-          }
-        }
-      }
-
-      if (use_axis_labels) {
-        mtext(text = "Item"         , side = 1, line = 0, outer = TRUE)
-        mtext(text = "Exposure Rate", side = 2, line = 0, outer = TRUE)
-        par(oma = old_oma, mar = old_mar)
-      }
-
-      p <- recordPlot()
-      dev.off()
-
-      out <- new("exposure_rate_plot")
-      out@plot <- p
-      out@item_exposure_rate         <- item_exposure_rate
-      out@item_exposure_rate_segment <- item_exposure_rate_segment
-      out@item_exposure_rate_segment_final <- item_exposure_rate_segment_final
-      out@stim_exposure_rate               <- stim_exposure_rate
-      out@stim_exposure_rate_segment       <- stim_exposure_rate_segment
-      out@stim_exposure_rate_segment_final <- stim_exposure_rate_segment_final
-      out@segment_rate_table <- segment_rate_table
-      out@n_segment <- n_segment
-      out@segment_n <- segment_n
-      out@segment_cut <- segment_cut
-      out@segment_label <- segment_label
-
-      return(out)
+      return(invisible(NULL))
     }
+
+    if (type == "shadow") {
+      plotShadowChart(
+        x, examinee_id,
+        simple,
+        use_par,
+        ...
+      )
+      return(invisible(NULL))
+    }
+
+    if (type == "exposure") {
+      plotShadowExposure(
+        x, theta_type,
+        segment,
+        use_segment_label,
+        color, color_final,
+        rmse,
+        use_par,
+        ...
+      )
+      return(invisible(NULL))
+    }
+
   }
 )
+
+#' @noRd
+plotExposurePanel <- function(
+  item_exposure_rate, item_exposure_rate_final = NULL,
+  stim_exposure_rate = NULL, stim_index = NULL,
+  max_rate = max_rate, title = NULL,
+  color = "blue", color_final = "yellow",
+  color_stim = "red", color_threshold = "dark gray",
+  simple = FALSE, ...) {
+
+  if (!is.null(stim_index)) {
+    idx_sort <- order(stim_exposure_rate, stim_index, item_exposure_rate, decreasing = TRUE)
+    item_exposure_rate_ordered <- item_exposure_rate[idx_sort]
+    stim_exposure_rate_ordered <- stim_exposure_rate[idx_sort]
+    stim_index_ordered         <- stim_index[idx_sort]
+  } else {
+    idx_sort <- order(item_exposure_rate, decreasing = TRUE)
+    item_exposure_rate_ordered <- item_exposure_rate[idx_sort]
+  }
+
+  ni <- length(item_exposure_rate)
+
+  if (!simple) {
+    xlab = "Item"
+    ylab = "Exposure Rate"
+  } else {
+    xlab = ""
+    ylab = ""
+  }
+
+  plot(
+    1:ni, item_exposure_rate_ordered,
+    type = "n", lwd = 2, ylim = c(0, 1),
+    xlab = "Item", ylab = "Exposure Rate", main = title,
+    ...
+  )
+  points(1:ni, item_exposure_rate_ordered, type = "h", lwd = 1, col = color)
+  if (!is.null(stim_exposure_rate)) {
+    lines(1:ni, stim_exposure_rate_ordered, col = color_stim, type = "s")
+    for (stim_id in unique(stim_index_ordered)) {
+      x <- mean((1:ni)[which(stim_index_ordered == stim_id)])
+      y <- stim_exposure_rate_ordered[which(stim_index_ordered == stim_id)][1]
+      points(x, y, col = color_stim, pch = 21, bg = 'white', cex = .75)
+    }
+  }
+  abline(h = max_rate, col = color_threshold, lty = 2)
+
+  if (!is.null(item_exposure_rate_final)) {
+    item_exposure_rate_final_ordered <- item_exposure_rate_final[idx_sort]
+    points(1:ni, item_exposure_rate_final_ordered, type = "h", lwd = 1, lty = 1, col = color_final)
+  }
+}
+
+#' @noRd
+plotShadowInfo <- function(x, examinee_id, position, info_type, ylim, theta, color, use_par, ...) {
+
+  o <- x@output[[examinee_id]]
+  if (is.null(position)) {
+    i <- o@administered_item_index
+    txt <- "administered items"
+  } else {
+    i <- o@shadow_test[[position]]$i
+    txt <- sprintf("shadow test at position %s", position)
+  }
+
+  p <- x@pool[i]
+  if (toupper(info_type) == "FISHER") {
+    y <- calcFisher(p, theta)
+    y <- rowSums(y)
+  } else {
+    stop("Invalid info_type specified")
+  }
+
+  if (is.null(ylim)) {
+    ylim <- c(0, max(y))
+  }
+
+  plot(
+    theta, y, xlab = "Theta", ylab = "Information",
+    main = sprintf("Examinee ID: %s (%s)", examinee_id, txt),
+    type = "n", ylim = ylim)
+
+  grid()
+
+  lines(theta, y, col = color)
+
+  legend_label = c()
+  legend_lty   = c()
+  legend_col   = c()
+
+  if (!is.null(o@true_theta)) {
+    abline(v = o@true_theta, col = "red", lty = 1)
+    legend_label <- c(legend_label, sprintf("True theta = %.3f", o@true_theta))
+    legend_lty   <- c(legend_lty, 1)
+    legend_col   <- c(legend_col, "red")
+  }
+
+  abline(v = o@final_theta_est, col = "red", lty = 2)
+  legend_label <- c(legend_label, sprintf("Final theta = %.3f", o@final_theta_est))
+  legend_lty   <- c(legend_lty, 2)
+  legend_col   <- c(legend_col, "red")
+
+  if (!is.null(position)) {
+    abline(v = o@interim_theta_est[position], col = "black", lty = 1)
+    legend_label <- c(legend_label, sprintf("Interim @ %s = %.3f", position, o@interim_theta_est[position]))
+    legend_lty   <- c(legend_lty, 1)
+    legend_col   <- c(legend_col, "black")
+
+    if (position > 1) {
+      abline(v = o@interim_theta_est[position - 1], col = "black", lty = 2)
+      legend_label <- c(legend_label, sprintf("Interim @ %s = %.3f", position - 1, o@interim_theta_est[position - 1]))
+      legend_lty   <- c(legend_lty, 2)
+      legend_col   <- c(legend_col, "black")
+    }
+    if (position == 1) {
+      abline(v = o@initial_theta_est, col = "black", lty = 2)
+      legend_label <- c(legend_label, sprintf("Initial theta = %.3f", o@initial_theta_est))
+      legend_lty   <- c(legend_lty, 2)
+      legend_col   <- c(legend_col, "black")
+    }
+  }
+
+  legend(
+    "topleft",
+    legend = legend_label,
+    lty    = legend_lty,
+    col    = legend_col
+  )
+
+  box()
+
+  return(invisible(NULL))
+
+}
+
+#' @noRd
+plotShadowAudit <- function(x, examinee_id, theta_range, z_ci, use_par, ...) {
+
+  if (!all(examinee_id %in% 1:length(x@output))) {
+    stop("plot(output_Shadow_all): 'examinee_id' out of bounds")
+  }
+  plot(
+    x@output[[examinee_id]],
+    type = "audit",
+    theta_range = theta_range,
+    z_ci = z_ci,
+    use_par = use_par,
+    ...
+  )
+  return(invisible(NULL))
+
+}
+
+#' @noRd
+plotShadowChart <- function(x, examinee_id, simple, use_par, ...) {
+
+  if (!all(examinee_id %in% 1:length(x@output))) {
+    stop("plot(output_Shadow_all): 'examinee_id' out of bounds")
+  }
+  plot(
+    x@output[[examinee_id]],
+    type = "shadow",
+    simple = simple,
+    use_par = use_par,
+    ...
+  )
+
+  return(invisible(NULL))
+
+}
+
+#' @noRd
+plotShadowExposure <- function(
+  x, theta_type,
+  segment, use_segment_label,
+  color, color_final, rmse, use_par, ...) {
+
+  if (toupper(theta_type) == "TRUE") {
+    theta_value <- x@true_theta
+    nj          <- length(theta_value)
+  } else if (toupper(theta_type) == "ESTIMATED") {
+    theta_value <- x@final_theta_est
+    nj          <- length(theta_value)
+  } else {
+    stop("plot(output_Shadow_all): 'theta_type' must be 'estimated' or 'true'")
+  }
+
+  ni <- x@pool@ni
+  nv <- ncol(x@usage_matrix)
+  max_rate      <- x@config@exposure_control$max_exposure_rate
+  segment_cut   <- x@config@exposure_control$segment_cut
+  n_segment     <- x@config@exposure_control$n_segment
+  cut_lower     <- segment_cut[1:n_segment]
+  cut_upper     <- segment_cut[2:(n_segment + 1)]
+  segment_label <- character(n_segment)
+
+  for (k in 1:n_segment) {
+    if (k < n_segment) {
+      segment_label[k] <- sprintf("(%s,%s]", cut_lower[k], cut_upper[k])
+    } else {
+      segment_label[k] <- sprintf("(%s,%s)", cut_lower[k], cut_upper[k])
+    }
+  }
+
+  theta_segment_index <- numeric(nj)
+  theta_segment_index <- find_segment(theta_value, segment_cut)
+
+  segment_n    <- numeric(n_segment)
+  segment_dist <- table(theta_segment_index)
+  segment_n[as.numeric(names(segment_dist))] <- segment_dist
+  segment_index_table <- matrix(NA, nj, x@constraints@test_length)
+
+  usage_matrix       <- x@usage_matrix
+  usage_matrix_final <- x@usage_matrix
+
+  for (j in 1:nj) {
+    administered_items <- x@output[[j]]@administered_item_index
+    pos_item_outside_of_segment <- x@output[[j]]@theta_segment_index != theta_segment_index[j]
+    idx_item_outside_of_segment <- administered_items[pos_item_outside_of_segment]
+    usage_matrix_final[j, idx_item_outside_of_segment] <- FALSE
+    segment_index_table[j, ] <- x@output[[j]]@theta_segment_index
+  }
+
+  ## visited segments across item positions and each examinee
+  segment_freq <- matrix(0, n_segment, n_segment)
+  for (i in 1:x@constraints@test_length) {
+    interim_segment_dist <- factor(segment_index_table[, i], levels = 1:n_segment)
+    segment_table <- tapply(interim_segment_dist, theta_segment_index, table)
+    for (s in 1:length(segment_table)) {
+      idx_r <- as.numeric(names(segment_table)[s])
+      idx_c <- as.numeric(names(segment_table[[s]]))
+      segment_freq[idx_r, idx_c] <- segment_freq[idx_r, idx_c] + segment_table[[s]]
+    }
+  }
+  segment_rate                <- segment_freq / segment_n
+  segment_rate_table          <- data.frame(
+    segment_class = factor(rep(segment_label, rep(n_segment, n_segment)), levels = segment_label),
+    segment = rep(1:n_segment, n_segment),
+    avg_visit = matrix(
+      t(segment_rate),
+      nrow = n_segment^2, ncol = 1)
+  )
+  exposure_rate               <- colSums(usage_matrix) / nj
+  exposure_rate_final         <- colSums(usage_matrix_final) / nj
+  item_exposure_rate          <- exposure_rate[1:ni]
+  item_exposure_rate_final    <- exposure_rate_final[1:ni]
+
+  if (x@constraints@set_based) {
+    stim_exposure_rate        <- exposure_rate[(ni + 1):nv][x@constraints@stimulus_index_by_item]
+    stim_exposure_rate_final  <- exposure_rate_final[(ni + 1):nv][x@constraints@stimulus_index_by_item]
+  } else {
+    stim_exposure_rate        <- NULL
+    stim_exposure_rate_final  <- NULL
+  }
+  exposure_rate_segment       <- vector("list", n_segment)
+  exposure_rate_segment_final <- vector("list", n_segment)
+  names(exposure_rate_segment)       <- segment_label
+  names(exposure_rate_segment_final) <- segment_label
+  for (k in 1:n_segment) {
+    if (segment_n[k] > 2) {
+      exposure_rate_segment[[k]]       <- colMeans(usage_matrix[theta_segment_index == k, ])
+      exposure_rate_segment_final[[k]] <- colMeans(usage_matrix_final[theta_segment_index == k, ])
+    }
+    if (is.null(exposure_rate_segment[[k]])) {
+      exposure_rate_segment[[k]] <- numeric(nv)
+    } else if (any(is.nan(exposure_rate_segment[[k]]))) {
+      exposure_rate_segment[[k]][is.nan(exposure_rate_segment[[k]])] <- 0
+    }
+    if (is.null(exposure_rate_segment_final[[k]])) {
+      exposure_rate_segment_final[[k]] <- numeric(nv)
+    } else if (any(is.nan(exposure_rate_segment_final[[k]]))) {
+      exposure_rate_segment_final[[k]][is.nan(exposure_rate_segment_final[[k]])] <- 0
+    }
+  }
+  item_exposure_rate_segment       <- exposure_rate_segment
+  item_exposure_rate_segment_final <- exposure_rate_segment_final
+  for (k in 1:n_segment) {
+    item_exposure_rate_segment[[k]]       <- item_exposure_rate_segment[[k]][1:ni]
+    item_exposure_rate_segment_final[[k]] <- item_exposure_rate_segment_final[[k]][1:ni]
+  }
+  if (x@constraints@set_based) {
+    stim_exposure_rate_segment       <- exposure_rate_segment
+    stim_exposure_rate_segment_final <- exposure_rate_segment_final
+    for (k in 1:n_segment) {
+      stim_exposure_rate_segment[[k]]       <- stim_exposure_rate_segment[[k]][(ni + 1):nv][x@constraints@stimulus_index_by_item]
+      stim_exposure_rate_segment_final[[k]] <- stim_exposure_rate_segment_final[[k]][(ni + 1):nv][x@constraints@stimulus_index_by_item]
+    }
+  } else {
+    stim_exposure_rate_segment       <- NULL
+    stim_exposure_rate_segment_final <- NULL
+  }
+
+  if (use_par) {
+    old_par <- par(no.readonly = TRUE)
+    on.exit({
+      par(old_par)
+    })
+    par(oma = c(3, 3, 0, 0), mar = c(3, 3, 2, 2))
+  }
+
+  if (is.null(segment)) {
+
+    segment <- c(0, 1:n_segment)
+    use_axis_labels <- TRUE
+
+  } else {
+
+    use_axis_labels <- FALSE
+
+  }
+
+  for (k in segment) {
+    if (k == 0) {
+      plotExposurePanel(
+        item_exposure_rate, item_exposure_rate_final, stim_exposure_rate, x@constraints@stimulus_index_by_item,
+        max_rate = max_rate, title = switch(2 - use_segment_label, "Overall", NULL),
+        color = color, color_final = color_final, simple = TRUE, ...
+      )
+      if (rmse) {
+        rmse_value <- sqrt(mean((x@final_theta_est - x@true_theta) ** 2))
+        text(0, 1, sprintf("RMSE = %1.3f", rmse_value), adj = c(0, 1))
+      }
+    } else {
+      plotExposurePanel(
+        item_exposure_rate_segment[[k]], item_exposure_rate_segment_final[[k]], stim_exposure_rate_segment[[k]], x@constraints@stimulus_index_by_item,
+        max_rate = max_rate, title = switch(2 - use_segment_label, segment_label[k], NULL),
+        color = color, color_final = color_final, simple = TRUE, ...
+      )
+      if (rmse) {
+        rmse_value <- sqrt(mean((x@final_theta_est[theta_segment_index == k] - x@true_theta[theta_segment_index == k]) ** 2))
+        text(0, 1, sprintf("RMSE = %1.3f", rmse_value), adj = c(0, 1))
+      }
+    }
+  }
+
+  if (use_axis_labels) {
+    mtext(text = "Item"         , side = 1, line = 0, outer = TRUE)
+    mtext(text = "Exposure Rate", side = 2, line = 0, outer = TRUE)
+  }
+
+  out <- new("exposure_rate_plot")
+  out@plot <- NULL
+  out@item_exposure_rate         <- item_exposure_rate
+  out@item_exposure_rate_segment <- item_exposure_rate_segment
+  out@item_exposure_rate_segment_final <- item_exposure_rate_segment_final
+  out@stim_exposure_rate               <- stim_exposure_rate
+  out@stim_exposure_rate_segment       <- stim_exposure_rate_segment
+  out@stim_exposure_rate_segment_final <- stim_exposure_rate_segment_final
+  out@segment_rate_table <- segment_rate_table
+  out@n_segment <- n_segment
+  out@segment_n <- segment_n
+  out@segment_cut <- segment_cut
+  out@segment_label <- segment_label
+
+  return(out)
+
+}

@@ -1,9 +1,9 @@
-e3e8cf6481ed9d1e3c6a78715ed290a3 *DESCRIPTION
+85486441bf51aa4b9be3c0f3a787c78d *DESCRIPTION
 e3e24b3b71e6dfce36ba8e744e569db6 *NAMESPACE
-94255a543bd7c57c77dcd4d25bc74754 *NEWS.md
+a20c977b927692ebeab0bac77246368d *NEWS.md
 b8e5331f55c8e67b7879abafd0458132 *R/RcppExports.R
 9e43fa647cdedc3f8bbd31836200ca65 *R/bayes_functions.R
-28bdb703e4a2afc704fd2d427f32d1e1 *R/constraint_functions.R
+6d639422879a0da05b2659308fe24c72 *R/constraint_functions.R
 1cf14c9c636556f6f53a8fdb40b7dd0e *R/constraints_operators.R
 14fe3e28e00cb5485d3599b1e57c43ba *R/cpp_documents.R
 4b686f5a3381198016ecb86af153a386 *R/datasets.R
@@ -19,11 +19,11 @@ d48168108b09f159a7dc82920ad0ef2a *R/item_pool_cluster_operators.R
 89dea7bfed2b7b84cae74aaa685faa19 *R/item_pool_operators.R
 1d25e09a56e71a4e5cdcf833beb8dc50 *R/loading_functions.R
 be347ad790809b8485535d0a7a67aa78 *R/other_functions.R
-3360cb7ca9680b316476e1c904d578bd *R/plot_functions.R
-4e49f98fd507d6a475108dcbb779d2a9 *R/print_functions.R
+e91d6ff53a9ac5dd8bb5ff96812b92e4 *R/plot_functions.R
+2592086211d8bba67e98892c8ff69305 *R/print_functions.R
 392ddc3e2fe9cc5efc7cc316dad95505 *R/runshiny.R
 724c786a20a0d270fb2238946c8c32c8 *R/shadow_class.R
-dcbc79ceff0ffd2908304b36d6033057 *R/shadow_functions.R
+3111e7d0542c6a2565d5ef589d381c99 *R/shadow_functions.R
 bf8b815cccf635a189b4a24d7948d603 *R/shadowtest_functions.R
 5e24b5f4d48b9a8a21a7e66a0e7dbfc7 *R/show_functions.R
 5f3b37dc5e72f07731af9dba89eba7e3 *R/solver_functions.R
@@ -35,7 +35,7 @@ c497f955c6d5e8c6a0b83162b0ad93b6 *R/static_functions.R
 0c73e740ed940867054c378cdf78c0b6 *R/test_operators.R
 197a3fd7504aa5f92c03cc191b50e4a3 *R/theta_functions.R
 03442e9374eee33e2947996bbdf53b03 *R/xdata_functions.R
-481c97c6a230b7f1539afaf6b5fbb8ef *build/vignette.rds
+90162cce1dff5eb0306c6cade7d9a760 *build/vignette.rds
 b88c10d102075a6002ef2ec4b7cee848 *data/constraints_bayes.rda
 74c010f28db755edafbd7f2676513e92 *data/constraints_bayes_data.rda
 7b321a667415316e37c3a6d8e336b4f6 *data/constraints_fatigue.rda
@@ -90,7 +90,7 @@ a1bb9533d69273ea8d0830be79fbb68f *inst/extdata/itempool_science_1000.csv
 1e97ca249e76efb1061561231c6afeac *inst/extdata/resp_fatigue_95.csv
 b8cece7a971d0c2e6d86bd180cda88c6 *inst/extdata/stimattrib_reading_303.csv
 42d02294be779626476ec298632bb29b *inst/shiny/global.r
-80e56a4cee14fc5253166d2b50c33021 *inst/shiny/server.r
+094490ddf27b36fcfdbd444d0bf8e81c *inst/shiny/server.r
 3e75587e6f97c5da96411962a1aa7f5d *inst/shiny/styles.css
 d08f006ccc8257debf2b3f74a641a34a *inst/shiny/ui.r
 96b5d2d3beccf4f8595636851f3c68a3 *man/RE.Rd
@@ -151,7 +151,7 @@ e11d465d4a54737e0278400e8c7b6b28 *man/mlef-methods.Rd
 e8d1d8749f4486a98474ad7f827a1263 *man/output_Shadow_all-class.Rd
 f2aa5e96cf49a84c9d19cb8512db4638 *man/output_Static-class.Rd
 a06a6c9960e315e79d85605e5ecacbea *man/p_item.Rd
-f62f2885963f17f46616f6fcc7a971b6 *man/plot-methods.Rd
+e18173fafeae0ebff19f678f08031de6 *man/plot-methods.Rd
 294a4b82cf725326c51b60f1410e2fb3 *man/print-methods.Rd
 feeac2ff724826e0ddcbc22ccf94e0c6 *man/runAssembly.Rd
 4af1329c006175f775efba86c05144dd *man/show-methods.Rd
@@ -194,7 +194,8 @@ a8e17c0d408736f86d469c9a087e03b6 *tests/testthat/test_calcProb_typecast.R
 355cad0b9ba22683a86e3e82c45661e9 *tests/testthat/test_deprecated.R
 70617330fcbc6b71165a02bd4a237845 *tests/testthat/test_examples.R
 53119f663338c3978d6f641918de438e *tests/testthat/test_excluding.R
-6e25bf697ada1f80a557ce24f93aeeb6 *tests/testthat/test_exposure_methods.R
+519932cafc2d4f0b17812cd912adfe82 *tests/testthat/test_exposure_methods.R
+d2233567261d74ef599127768daa399b *tests/testthat/test_plot_functions.r
 8e487fb691a38e4b8fcd620d61e5cfa2 *tests/testthat/test_static.R
 acf20d77406505f4080d9d93580f5a9d *vignettes/constraints.Rmd
 e37743687c7e381b271e821cc53064af *vignettes/rsymphony.Rmd

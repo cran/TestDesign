@@ -25,11 +25,12 @@
   color = "blue",
   z_ci = 1.96,
   simple = TRUE,
-  theta_segment = "Estimated",
+  theta_type = "Estimated",
   color_final = "blue",
   segment = NULL,
   rmse = FALSE,
   use_segment_label = TRUE,
+  use_par = TRUE,
   ...
 )
 
@@ -48,11 +49,7 @@
   color = "blue",
   z_ci = 1.96,
   simple = TRUE,
-  theta_segment = "Estimated",
-  color_final = "blue",
-  segment = NULL,
-  rmse = FALSE,
-  use_segment_label = TRUE,
+  use_par = TRUE,
   ...
 )
 
@@ -71,9 +68,7 @@
   color = "blue",
   z_ci = 1.96,
   simple = TRUE,
-  theta_segment = "Estimated",
-  color_final = "blue",
-  segment = NULL,
+  use_par = TRUE,
   ...
 )
 
@@ -91,11 +86,8 @@
   color = "blue",
   z_ci = 1.96,
   simple = FALSE,
-  theta_segment = "Estimated",
-  color_final = "blue",
-  segment = NULL,
-  rmse = FALSE,
-  use_segment_label = TRUE,
+  theta_type = "Estimated",
+  use_par = TRUE,
   ...
 )
 
@@ -114,11 +106,13 @@
   color = "blue",
   z_ci = 1.96,
   simple = FALSE,
-  theta_segment = "Estimated",
+  theta_type = "Estimated",
   color_final = "blue",
   segment = NULL,
   rmse = FALSE,
   use_segment_label = TRUE,
+  use_par = TRUE,
+  theta_segment = NULL,
   ...
 )
 }
@@ -170,7 +164,7 @@
 
 \item{simple}{used in \code{\linkS4class{output_Shadow}} and \code{\linkS4class{output_Shadow_all}} with \code{type = 'shadow'}. If \code{TRUE}, simplify the chart by hiding unused items.}
 
-\item{theta_segment}{used in \code{\linkS4class{output_Shadow_all}} with \code{type = 'exposure'}. The type of theta to determine exposure segments. Accepts \code{Estimated} or \code{True}. (default = \code{Estimated})}
+\item{theta_type}{used in \code{\linkS4class{output_Shadow_all}} with \code{type = 'exposure'}. The type of theta to determine exposure segments. Accepts \code{Estimated} or \code{True}. (default = \code{Estimated})}
 
 \item{color_final}{used in \code{\linkS4class{output_Shadow_all}} with \code{type = 'exposure'}. The color of item-wise exposure rates, only counting the items administered in the final theta segment as exposed.}
 
@@ -180,7 +174,11 @@
 
 \item{use_segment_label}{used in \code{\linkS4class{output_Shadow_all}} with \code{type = 'exposure'}. If \code{TRUE}, display the segment label for each segment. (default = \code{TRUE})}
 
+\item{use_par}{if \code{FALSE}, graphical parameters are not overridden inside the function. (default = \code{TRUE})}
+
 \item{...}{arguments to pass onto \code{\link[graphics]{plot}}.}
+
+\item{theta_segment}{(deprecated) use \code{theta_type} argument instead.}
 }
 \description{
 Extension of plot() for objects in TestDesign package

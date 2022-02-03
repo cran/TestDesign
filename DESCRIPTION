@@ -2,8 +2,8 @@ Package: TestDesign
 Type: Package
 Title: Optimal Test Design Approach to Fixed and Adaptive Test
         Construction
-Version: 1.2.6
-Date: 2021-09-10
+Version: 1.2.7
+Date: 2022-02-02
 Authors@R: c(
     person("Seung W.", "Choi",
         email = "schoi@austin.utexas.edu",
@@ -48,8 +48,8 @@ Collate: 'RcppExports.R' 'import.R' 'extensions.R' 'item_class.R'
         'show_functions.R' 'test_operators.R' 'theta_functions.R'
         'xdata_functions.R'
 NeedsCompilation: yes
-Packaged: 2021-09-21 14:28:51 UTC; chois1
+Packaged: 2022-02-02 19:43:39 UTC; chois1
 Author: Seung W. Choi [aut, cre] (<https://orcid.org/0000-0003-4777-5420>),
   Sangdon Lim [aut] (<https://orcid.org/0000-0002-2988-014X>)
 Repository: CRAN
-Date/Publication: 2021-09-22 08:40:11 UTC
+Date/Publication: 2022-02-03 07:50:08 UTC
