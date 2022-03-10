@@ -1,3 +1,13 @@
+# TestDesign 1.3.0
+
+## New features
+
+* Added `Split()` for partitioning an item pool into parallel tests/sub-pools that satisfy all constraints. This is an experimental method we are currently working on. See `vignette('split')` for a quick introduction.
+
+## Bug fixes
+
+* Fixed where alpha adjustment for exposure control was being applied excessively.
+
 # TestDesign 1.2.7
 
 ## Updates
@@ -6,7 +16,7 @@
 * Shiny app `TestDesign()` is updated to work with the above change.
 * `plot()` gains a new `use_par` argument to override using default graphical parameters that are hard-coded into the function. This allows for more flexible formatting.
 * `theta_segment` argument in `plot(type = "exposure")` is renamed to `theta_type`. The existing argument is deprecated and using it will raise a warning.
-* added validation check for test length constraints. In shadow test approach, test length is expected to be a fixed value.
+* Added validation check for test length constraints. In shadow test approach, test length is expected to be a fixed value.
 
 # TestDesign 1.2.6
 
