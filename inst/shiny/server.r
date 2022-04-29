@@ -5,19 +5,22 @@ server <- function(input, output, session) {
     const_exists = FALSE,
     content_exists = FALSE,
     stimattrib_exists = FALSE,
-    problemtype = 0
+    problemtype = 0,
+    solvers = solvers
   )
 
   # test each solver and filter
   for (s in solvers) {
     if (testSolver(s) != "") {
-      solvers <- setdiff(solvers, s)
+      v$solvers <- setdiff(solvers, s)
     }
   }
-  updateRadioGroupButtons(
-    session, "solvertype",
-    choices = solvers
-  )
+  observe({
+    updateRadioGroupButtons(
+      session, "solvertype",
+      choices = v$solvers
+    )
+  })
 
   observeEvent(input$itempool_file, {
     if (!is.null(input$itempool_file)) {
@@ -25,7 +28,7 @@ server <- function(input, output, session) {
       if (class(v$itempool) == "item_pool") {
         v$itempool_exists <- TRUE
         v <- updateLogs(v, "Step 1. Item parameter file: OK")
-        v$ipar <- v$itempool@ipar
+        v$ipar <- v$itempool@raw
         assignObject(v$itempool,
           "shiny_itempool",
           "Item parameters (full object)")
@@ -211,7 +214,7 @@ server <- function(input, output, session) {
         if (input$simulee_id != "") {
           v <- updateLogs(v, sprintf("Created plots for simulee %i", v$simulee_id))
 
-          plot(v$fit, v$simulee_id, type = 'audit')
+          plot(v$fit, v$simulee_id, type = "audit")
           p <- recordPlot()
           dev.off()
 
@@ -221,7 +224,7 @@ server <- function(input, output, session) {
             sprintf("Audit trail plot for simulee %i", v$simulee_id)
           )
 
-          plot(v$fit, v$simulee_id, type = 'shadow', simple = TRUE)
+          plot(v$fit, v$simulee_id, type = "shadow", simple = TRUE)
           p <- recordPlot()
           dev.off()
 
@@ -298,8 +301,8 @@ server <- function(input, output, session) {
         progress <- Progress$new(session)
         on.exit(progress$close())
         progress$set(
-          message = 'Computing..',
-          detail = 'This may take a while.'
+          message = "Computing..",
+          detail = "This may take a while."
         )
 
         v$fit <- Static(conf, v$const)
@@ -416,6 +419,8 @@ server <- function(input, output, session) {
 
         conf@exposure_control$method <- input$exposure_method
         conf@exposure_control$diagnostic_stats <- TRUE
+        conf@exposure_control$max_exposure_rate <-
+          rep(0.25, conf@exposure_control$n_segment)
 
         # parse theta estimation settings
 
@@ -514,8 +519,8 @@ server <- function(input, output, session) {
         progress <- Progress$new(session)
         on.exit(progress$close())
         progress$set(
-          message = 'Computing..',
-          detail = 'This may take a while.'
+          message = "Computing..",
+          detail = "This may take a while."
         )
 
         v$time <- Sys.time()
@@ -543,11 +548,31 @@ server <- function(input, output, session) {
     shinyjs::enable("run_solver")
   })
 
-  output$table_itempool    <- renderDT(parseObject(v$ipar), options = list(pageLength = 100))
-  output$table_itemattrib  <- renderDT(parseObject(if(!is.null(v$itemattrib)) v$itemattrib@data else NULL), options = list(pageLength = 100))
-  output$table_stimattrib  <- renderDT(parseObject(if(!is.null(v$stimattrib)) v$stimattrib@data else NULL), options = list(pageLength = 100))
-  output$table_constraints <- renderDT(parseObject(v$constraints), options = list(pageLength = 100))
-  output$results      <- renderDT(parseObject(v$results), options = list(pageLength = 100))
+  output$table_itempool    <- renderDT(
+    parseObject(v$ipar),
+    options = list(pageLength = 100),
+    rownames = FALSE
+  )
+  output$table_itemattrib  <- renderDT(
+    parseObject(if(!is.null(v$itemattrib)) v$itemattrib@data else NULL),
+    options = list(pageLength = 100),
+    rownames = FALSE
+  )
+  output$table_stimattrib  <- renderDT(
+    parseObject(if(!is.null(v$stimattrib)) v$stimattrib@data else NULL),
+    options = list(pageLength = 100),
+    rownames = FALSE
+  )
+  output$table_constraints <- renderDT(
+    parseObject(v$constraints),
+    options = list(pageLength = 100),
+    rownames = FALSE
+  )
+  output$results      <- renderDT(
+    parseObject(v$results),
+    options = list(pageLength = 100),
+    rownames = FALSE
+  )
   output$text_output  <- renderText(parseObject(v$logs_text))
   output$plot_output  <- renderPlot(parseObject(v$plot_output))
   output$shadow_chart <- renderPlot(parseObject(v$shadow_chart))
@@ -632,6 +657,20 @@ server <- function(input, output, session) {
     },
     contentType = "application/zip"
   )
+
+  observeEvent(input$closeapp, {
+    if ("Yes" %in% input$closeapp) {
+      stopApp()
+    }
+    if ("No" %in% input$closeapp) {
+      updateCheckboxGroupButtons(
+        session = session,
+        inputId = "closeapp",
+        selected = character(0)
+      )
+      toggleDropdownButton(inputId = "closeapp_dropdown")
+    }
+  })
 
   session$onSessionEnded(function() {
     stopApp()

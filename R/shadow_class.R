@@ -92,6 +92,7 @@ setClass("config_Shadow",
     content_balancing  = "list",
     MIP                = "list",
     MCMC               = "list",
+    exclude_policy     = "list",
     refresh_policy     = "list",
     exposure_control   = "list",
     stopping_criterion = "list",
@@ -124,6 +125,10 @@ setClass("config_Shadow",
       post_burn_in              = 500,
       thin                      = 1,
       jump_factor               = 1
+    ),
+    exclude_policy = list(
+      method = "HARD",
+      M = NULL
     ),
     refresh_policy = list(
       method                    = "ALWAYS",
@@ -215,6 +220,25 @@ setClass("config_Shadow",
       msg <- sprintf("config@content_balancing: unrecognized $method '%s' (accepts NONE, or STA)", object@content_balancing$method)
       err <- c(err, msg)
     }
+    if (!object@exclude_policy$method %in%
+      c("HARD", "SOFT")) {
+      msg <- sprintf("config@exclude_policy: unrecognized $method '%s' (accepts HARD, or SOFT)", object@exclude_policy$method)
+      err <- c(err, msg)
+    }
+    if (object@exclude_policy$method == "SOFT") {
+      if (!is.numeric(object@exclude_policy$M)) {
+        if (!is.null(object@exclude_policy$M)) {
+          msg <- sprintf("$method 'SOFT' requires $M to be a positive value")
+          err <- c(err, msg)
+        }
+      }
+      if (is.numeric(object@exclude_policy$M)) {
+        if (object@exclude_policy$M < 0) {
+          msg <- sprintf("$method 'SOFT' requires $M to be a positive value")
+          err <- c(err, msg)
+        }
+      }
+    }
     if (!object@refresh_policy$method %in%
       c("ALWAYS", "POSITION", "INTERVAL", "THRESHOLD", "INTERVAL-THRESHOLD", "STIMULUS", "SET", "PASSAGE")) {
       msg <- sprintf("config@refresh_policy: unrecognized $method '%s'", object@refresh_policy$method)
@@ -223,6 +247,20 @@ setClass("config_Shadow",
     if (!object@exposure_control$method %in% c("NONE", "ELIGIBILITY", "BIGM", "BIGM-BAYESIAN")) {
       msg <- sprintf("config@exposure_control: unrecognized $method '%s' (accepts NONE, ELIGIBILITY, BIGM, or BIGM-BAYESIAN)", object@exposure_control$method)
       err <- c(err, msg)
+    }
+    if (object@exposure_control$method %in% c("BIGM", "BIGM-BAYESIAN")) {
+      if (!is.numeric(object@exposure_control$M)) {
+        if (!is.null(object@exposure_control$M)) {
+          msg <- sprintf("$method 'BIGM', 'BIGM-BAYESIAM' requires $M to be a positive value")
+          err <- c(err, msg)
+        }
+      }
+      if (is.numeric(object@exposure_control$M)) {
+        if (object@exposure_control$M < 0) {
+          msg <- sprintf("$method 'BIGM', 'BIGM-BAYESIAM' requires $M to be a positive value")
+          err <- c(err, msg)
+        }
+      }
     }
     if (toupper(object@item_selection$method) %in% c("GFI") &
       object@exposure_control$method %in% c("ELIGIBILITY")) {
@@ -309,6 +347,11 @@ setClass("config_Shadow",
 #'   \item{\code{thin}} thinning interval to apply. \code{1} represents no thinning. (default = \code{1})
 #'   \item{\code{jump_factor}} the jump factor to use. \code{1} represents no jumping. (default = \code{1})
 #' }
+#' @param exclude_policy a named list containing the exclude policy for use with the \code{exclude} argument in \code{\link{Shadow}}.
+#' \itemize{
+#'   \item{\code{method}} the type of policy. Accepts \code{HARD, SOFT}. (default = \code{HARD})
+#'   \item{\code{M}} the Big M penalty to use on item information. Used in the \code{SOFT} method.
+#' }
 #' @param refresh_policy a named list containing the refresh policy for when to obtain a new shadow test.
 #' \itemize{
 #'   \item{\code{method}} the type of policy. Accepts \code{ALWAYS, POSITION, INTERVAL, THRESHOLD, INTERVAL-THRESHOLD, STIMULUS, SET, PASSAGE}. (default = \code{ALWAYS})
@@ -385,20 +428,34 @@ setClass("config_Shadow",
 #' @export
 createShadowTestConfig <- function(
   item_selection = NULL, content_balancing = NULL, MIP = NULL, MCMC = NULL,
-  refresh_policy = NULL, exposure_control = NULL, stopping_criterion = NULL,
+  exclude_policy = NULL, refresh_policy = NULL, exposure_control = NULL, stopping_criterion = NULL,
   interim_theta = NULL, final_theta = NULL, theta_grid = seq(-4, 4, .1)) {
   cfg <- new("config_Shadow")
 
   arg_names <- c(
     "item_selection", "content_balancing", "MIP", "MCMC",
-    "refresh_policy", "exposure_control", "stopping_criterion",
+    "exclude_policy", "refresh_policy", "exposure_control", "stopping_criterion",
     "interim_theta", "final_theta"
   )
   obj_names <- c()
   for (arg in arg_names) {
     if (!is.null(eval(parse(text = arg)))) {
-      eval(parse(text = paste0("obj_names <- names(cfg@", arg, ")")))
-      for (entry in obj_names) {
+      accepted_slots <-
+        eval(parse(text = sprintf("names(cfg@%s)", arg)))
+      supplied_slots <-
+        eval(parse(text = sprintf("names(%s)", arg)))
+      leftovers <- setdiff(supplied_slots, accepted_slots)
+      if (length(leftovers) > 0) {
+        for (x in leftovers) {
+          stop(
+            sprintf(
+              "cfg@%s: slot '%s' is unused",
+              arg, x
+            )
+          )
+        }
+      }
+      for (entry in accepted_slots) {
         entry_l <- paste0("cfg@", arg, "$", entry)
         entry_r <- paste0(arg, "$", entry)
         tmp <- eval(parse(text = entry_r))
