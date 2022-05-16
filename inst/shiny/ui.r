@@ -11,12 +11,12 @@ ui <- fluidPage(
       dropdownButton(
         h3(""),
         label = "Load files",
-        fileInput("itempool_file",   buttonLabel = "Item parameters",                 label = NULL, accept = accepted_files),
-        fileInput("itemse_file",     buttonLabel = "Item standard errors (optional)", label = NULL, accept = accepted_files),
-        fileInput("itemattrib_file", buttonLabel = "Item attributes",                 label = NULL, accept = accepted_files),
-        fileInput("stimattrib_file", buttonLabel = "Stimulus attributes (optional)",  label = NULL, accept = accepted_files),
-        fileInput("const_file",      buttonLabel = "Constraints",                     label = NULL, accept = accepted_files),
-        fileInput("content_file",    buttonLabel = "Item contents (optional)",        label = NULL, accept = accepted_files),
+        fileInput("itempool_file",    buttonLabel = "Item parameters",                 label = NULL, accept = accepted_files),
+        fileInput("itemse_file",      buttonLabel = "Item standard errors (optional)", label = NULL, accept = accepted_files),
+        fileInput("itemattrib_file",  buttonLabel = "Item attributes",                 label = NULL, accept = accepted_files),
+        fileInput("stimattrib_file",  buttonLabel = "Stimulus attributes (optional)",  label = NULL, accept = accepted_files),
+        fileInput("constraints_file", buttonLabel = "Constraints",                     label = NULL, accept = accepted_files),
+        fileInput("itemtext_file",     buttonLabel = "Item texts (optional)",        label = NULL, accept = accepted_files),
         checkboxGroupButtons(
           inputId = "clear_files", justified = TRUE,
           choices = c("Clear files"), checkIcon = list(yes = icon("trash-alt"), no = icon("trash-alt"))
@@ -51,8 +51,8 @@ ui <- fluidPage(
         choices = c("TCC", "TIF", "MAXINFO")
       ),
 
-      textInput("thetas", label = h3("Theta values (comma-separated)"), value = "0, 1"),
-      textInput("targets", label = h3("Target values (comma-separated)"), value = "15, 20"),
+      textInput("item_selection_target_location", label = h3("Theta values (comma-separated)"), value = "0, 1"),
+      textInput("item_selection_target_value", label = h3("Target values (comma-separated)"), value = "15, 20"),
 
       h3(""),
 
@@ -65,7 +65,7 @@ ui <- fluidPage(
         inputId = "simulation_dropdown", label = "Simulation settings",
         radioGroupButtons(
           inputId = "simulee_theta_distribution", justified = TRUE,
-          choices = c("NORMAL", "UNIF")
+          choices = c("NORMAL", "UNIFORM")
         ),
         textInput("simulee_theta_params", label = "True theta distribution parameters", value = "0, 1"),
         textInput("n_simulees", label = h3("# of simulees"), value = "1"),
@@ -76,11 +76,11 @@ ui <- fluidPage(
       dropdownButton(
         inputId = "exposure_dropdown", label = "Exposure control settings",
         radioGroupButtons(
-          inputId = "exposure_method", justified = TRUE,
+          inputId = "exposure_control_method", justified = TRUE,
           choices = c("ELIGIBILITY", "BIGM", "BIGM-BAYESIAN")
         ),
-        sliderInput("exposure_fading_factor", label = h3("Fading factor"), min = .9, max = 1.0, value = 1.0, step = .01),
-        textInput("exposure_acc_factor", label = h3("Acceleration factor"), value = "2"),
+        sliderInput("exposure_control_fading_factor", label = h3("Fading factor"), min = .9, max = 1.0, value = 1.0, step = .01),
+        textInput("exposure_control_acceleration_factor", label = h3("Acceleration factor"), value = "2"),
         circle = FALSE, icon = icon("cog"), width = "100%"
       ),
 
@@ -88,24 +88,24 @@ ui <- fluidPage(
         inputId = "theta_settings", label = "Estimation Settings for interim & final thetas",
         h3("Interim theta"),
         radioGroupButtons(
-          inputId = "interim_method", justified = TRUE,
+          inputId = "interim_theta_method", justified = TRUE,
           choices = c("EAP", "FB", "EB")
         ),
         radioGroupButtons(
-          inputId = "interim_prior", justified = TRUE,
-          choices = c("NORMAL", "UNIF")
+          inputId = "interim_theta_prior_dist", justified = TRUE,
+          choices = c("NORMAL", "UNIFORM")
         ),
-        textInput("interim_prior_par", label = "Prior distribution parameters", value = "0, 1"),
+        textInput("interim_theta_prior_par", label = "Prior distribution parameters", value = "0, 1"),
         h3("Final theta"),
         radioGroupButtons(
-          inputId = "final_method", justified = TRUE,
+          inputId = "final_theta_method", justified = TRUE,
           choices = c("EAP", "FB", "EB")
         ),
         radioGroupButtons(
-          inputId = "final_prior", justified = TRUE,
-          choices = c("NORMAL", "UNIF")
+          inputId = "final_theta_prior_dist", justified = TRUE,
+          choices = c("NORMAL", "UNIFORM")
         ),
-        textInput("final_prior_par", label = "Prior distribution parameters", value = "0, 1"),
+        textInput("final_theta_prior_par", label = "Prior distribution parameters", value = "0, 1"),
         circle = FALSE, icon = icon("cog"), width = "100%"
       ),
 
@@ -117,12 +117,12 @@ ui <- fluidPage(
       dropdownButton(
         inputId = "refresh_policy_dropdown", label = "Refresh policy",
         radioGroupButtons(
-          inputId = "refresh_policy", justified = TRUE, direction = "vertical",
+          inputId = "refresh_policy_method", justified = TRUE, direction = "vertical",
           choices = c("ALWAYS", "POSITION", "INTERVAL", "THRESHOLD", "INTERVAL-THRESHOLD", "SET")
         ),
-        textInput("refresh_threshold", label = h3("Refresh when theta change exceeds"), value = "0.1"),
-        textInput("refresh_position", label = h3("Refresh at item positions (comma-separated)"), value = "1, 10"),
-        textInput("refresh_interval", label = h3("Refresh at item intervals (1 = always)"), value = "2"),
+        textInput("refresh_policy_threshold", label = h3("Refresh when theta change exceeds"), value = "0.1"),
+        textInput("refresh_policy_position", label = h3("Refresh at item positions (comma-separated)"), value = "1, 10"),
+        textInput("refresh_policy_interval", label = h3("Refresh at item intervals (1 = always)"), value = "2"),
         circle = FALSE, icon = icon("cog"), width = "100%"
       ),
 
