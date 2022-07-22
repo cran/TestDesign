@@ -106,22 +106,14 @@ applyEligibilityConstraintsToXdata <- function(xdata, eligible_flag_in_current_t
 #' @noRd
 applyEligibilityConstraintsToInfo <- function(o, eligible_flag_in_current_theta_segment, config, constants) {
 
-  if (is.null(constants$M) & config@item_selection$method == "GFI") {
-    o[eligible_flag_in_current_theta_segment$i == 0] <- 1 * constants$max_info + 1 # add because GFI performs minimization
-    return(o)
-  }
-  if (is.null(constants$M) & config@item_selection$method != "GFI") {
-    o[eligible_flag_in_current_theta_segment$i == 0] <- -1 * constants$max_info - 1
-    return(o)
-  }
-  if (!is.null(constants$M) & config@item_selection$method == "GFI") {
+  if (config@item_selection$method == "GFI") {
     o[eligible_flag_in_current_theta_segment$i == 0] <-
-    o[eligible_flag_in_current_theta_segment$i == 0] + constants$M # add because GFI performs minimization
+    o[eligible_flag_in_current_theta_segment$i == 0] + constants$exposure_M # add because GFI performs minimization
     return(o)
   }
-  if (!is.null(constants$M) & config@item_selection$method != "GFI") {
+  if (config@item_selection$method != "GFI") {
     o[eligible_flag_in_current_theta_segment$i == 0] <-
-    o[eligible_flag_in_current_theta_segment$i == 0] - constants$M
+    o[eligible_flag_in_current_theta_segment$i == 0] - constants$exposure_M
     return(o)
   }
 
@@ -439,8 +431,9 @@ parseDiagnosticStats <- function(
   for (j in 1:constants$nj) {
 
     tmp <- list()
-    tmp$true_theta         <- true_theta[j]
-    tmp$true_segment       <- find_segment(true_theta[j], constants$segment_cut)
+    tmp$true_theta         <- true_theta[j, ]
+    # find_segment() needs to be updated for multidimensional segments
+    tmp$true_segment       <- find_segment(true_theta[j, ], constants$segment_cut)
     tmp$true_segment_count <- segment_record$count_true[j]
     o$elg_stats[[j]] <- tmp
 
@@ -475,8 +468,8 @@ parseDiagnosticStats <- function(
   for (j in 1:constants$nj) {
 
     tmp <- list()
-    tmp$true_theta         <- true_theta[j]
-    tmp$true_segment       <- find_segment(true_theta[j], constants$segment_cut)
+    tmp$true_theta         <- true_theta[j, ]
+    tmp$true_segment       <- find_segment(true_theta[j, ], constants$segment_cut)
     tmp$true_segment_count <- segment_record$count_true[j]
     o$elg_stats_nofade[[j]] <- tmp
 

@@ -1,90 +1,6 @@
 #' @include static_class.R
 NULL
 
-#' Class 'test': data for test assembly
-#'
-#' \code{\linkS4class{test}} is an S4 class to represent data for test assembly.
-#'
-#' @slot pool the \code{\linkS4class{item_pool}} object.
-#' @slot theta the theta grid to use as quadrature points.
-#' @slot prob the list containing item response probabilities.
-#' @slot info the matrix containing item information values.
-#' @slot true_theta (optional) the true theta values.
-#' @slot data (optional) the matrix containing item responses.
-#'
-#' @export
-setClass("test",
-  slots = c(
-    pool       = "item_pool",
-    theta      = "numeric",
-    prob       = "list",
-    info       = "matrix",
-    true_theta = "numeric_or_null",
-    data       = "matrix_or_null"
-  ),
-  prototype = list(
-    pool       = new("item_pool"),
-    theta      = numeric(0),
-    prob       = list(0),
-    info       = matrix(0),
-    true_theta = numeric(0),
-    data       = matrix(NA, 0, 0)
-  ),
-  validity = function(object) {
-    err <- NULL
-    if (length(object@prob) != object@pool@ni) {
-      err <- c(err, "test: length(@prob) must be equal to @pool@ni")
-    }
-    if (ncol(object@info) != object@pool@ni) {
-      err <- c(err, "test: ncol(@info) must match @pool@ni")
-    }
-    if (nrow(object@info) != length(object@theta)) {
-      err <- c(err, "test: nrow(@info) must match length(@theta)")
-    }
-    if (length(err) == 0) {
-      return(TRUE)
-    } else {
-      return(err)
-    }
-  }
-)
-
-#' Class 'test_cluster': data for test assembly
-#'
-#' \code{\linkS4class{test_cluster}} is an S4 class to represent data for test assembly.
-#'
-#' @slot nt the number of \code{\linkS4class{test}} objects in this cluster.
-#' @slot tests the list containing \code{\linkS4class{test}} objects.
-#' @slot names test ID strings for each \code{\linkS4class{test}} object.
-#'
-#' @export
-setClass("test_cluster",
-  slots = c(
-    nt      = "numeric",
-    tests   = "list",
-    names   = "character"
-  ),
-  prototype = list(
-    nt      = numeric(0),
-    tests   = list(0),
-    names   = character(0)
-  ),
-  validity = function(object) {
-    err <- NULL
-    if (length(object@tests) != object@nt) {
-      err <- c(err, "test_cluster: @nt must be equal to length(@tests)")
-    }
-    if (length(object@names) != object@nt) {
-      err <- c(err, "test_cluster: @nt must be equal to length(@names)")
-    }
-    if (length(err) == 0) {
-      return(TRUE)
-    } else {
-      return(err)
-    }
-  }
-)
-
 #' @rdname createShadowTestConfig
 #' @export
 setClass("config_Shadow",
@@ -170,7 +86,8 @@ setClass("config_Shadow",
       step_size                 = 0.5,
       do_Fisher                 = TRUE,
       fence_slope               = 5,
-      fence_difficulty          = c(-5, 5)
+      fence_difficulty          = c(-5, 5),
+      hand_scored_attribute     = NULL
     ),
     final_theta = list(
       method                    = "EAP",
@@ -397,6 +314,7 @@ setClass("config_Shadow",
 #'   \item{\code{do_Fisher}} set \code{TRUE} to use Fisher's method of scoring. Used when \code{method} is \code{MLE}. (default = \code{TRUE})
 #'   \item{\code{fence_slope}} slope parameter to use for \code{method = 'MLEF'}. This must have two values in total, for the lower and upper bound item respectively. Use one value to use the same value for both bounds. (default = \code{5})
 #'   \item{\code{fence_difficulty}} difficulty parameters to use for \code{method = 'MLEF'}. This must have two values in total, for the lower and upper bound item respectively. (default = \code{c(-5, 5)})
+#'   \item{\code{hand_scored_attribute}} (optional) the item attribute name for whether each item is hand-scored or not. The attribute should have \code{TRUE} (hand-scored) and \code{FALSE} (machine-scored) values. If a hand-scored item is administered to an examinee, the previous interim theta (or the starting theta if this occurs for the first item) is reused without updating the estimate.
 #' }
 #' @param final_theta a named list containing final theta estimation options.
 #' \itemize{
@@ -516,8 +434,8 @@ createShadowTestConfig <- function(
 setClass("output_Shadow_all",
   slots = c(
     output                      = "list_or_null",
-    final_theta_est             = "numeric_or_null",
-    final_se_est                = "numeric_or_null",
+    final_theta_est             = "matrix_or_numeric_or_null",
+    final_se_est                = "matrix_or_numeric_or_null",
     exposure_rate               = "matrix_or_null",
     usage_matrix                = "matrix_or_null",
     true_segment_count          = "numeric_or_null",
@@ -530,7 +448,7 @@ setClass("output_Shadow_all",
     config                      = "config_Shadow",
     constraints                 = "constraints",
     data                        = "matrix_or_null",
-    true_theta                  = "numeric_or_null",
+    true_theta                  = "matrix_or_numeric_or_null",
     prior                       = "matrix_or_numeric_or_null",
     prior_par                   = "matrix_or_numeric_or_null"
   ),
@@ -596,10 +514,10 @@ setClass("output_Shadow_all",
 setClass("output_Shadow",
   slots = c(
     simulee_id                  = "numeric",
-    true_theta                  = "numeric_or_null",
+    true_theta                  = "matrix_or_numeric_or_null",
     true_theta_segment          = "numeric_or_null",
-    final_theta_est             = "numeric",
-    final_se_est                = "numeric",
+    final_theta_est             = "matrix_or_numeric",
+    final_se_est                = "matrix_or_numeric",
     administered_item_index     = "numeric",
     administered_item_resp      = "numeric",
     administered_item_ncat      = "numeric",
@@ -607,9 +525,9 @@ setClass("output_Shadow",
     shadow_test_refreshed       = "logical",
     shadow_test_feasible        = "logical",
     solve_time                  = "numeric",
-    initial_theta_est           = "numeric",
-    interim_theta_est           = "numeric",
-    interim_se_est              = "numeric",
+    initial_theta_est           = "matrix_or_numeric",
+    interim_theta_est           = "matrix_or_numeric",
+    interim_se_est              = "matrix_or_numeric",
     theta_segment_index         = "numeric",
     prior                       = "numeric",
     prior_par                   = "numeric",

@@ -1,3 +1,20 @@
+# TestDesign 1.3.4
+
+## Bug fixes
+
+* Fixed where `Shadow()` was not working when `data` was supplied with `true_theta` left empty. (#118)
+* Fixed where `BIGM` exposure control was ignoring the `M` value and defaulting to (maximum information + 1) even when it was supplied.
+* Fixed where `Shadow()` was not working when the `FIXED` item selection method was used with a single `$fixed_theta` value in the config. (#132)
+* Fixed where if interim theta estimation method was `EB` or `FB`, prior sample generation was ignoring prior distribution type and assuming normal distribution.
+* Fixed where if prior distribution type was uniform, prior density generation was ignoring prior parameters and using U(0, 1).
+* Fixed where EAP shrinkage correction was ignoring prior standard deviation when it was supplied in the config.
+* Fixed where using MLEF would raise a `duplicate item IDs found` warning for R <= 3.6.
+
+## Updates
+
+* The `FIXED` item selection method for `Shadow()` now does not approximate the supplied value to the nearest theta quadrature when computing information.
+* `config_Shadow@interim_theta$prior_dist` and `config_Shadow@final_theta$prior_dist` now accept `RAW`. This is introduced to accommodate supplying raw densities to the `prior` argument of `Shadow()`.
+
 # TestDesign 1.3.3
 
 ## Updates

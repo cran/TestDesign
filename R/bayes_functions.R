@@ -2,45 +2,72 @@
 NULL
 
 #' @noRd
-initializePosterior <- function(prior, prior_par, config, constants, pool, posterior_constants) {
+parsePriorParameters <- function(o, constants, prior_density_override, prior_par_override) {
 
-  theta_grid <- constants$theta_q
-  nj         <- constants$nj
-  nq         <- constants$nq
+  # override config with prior arguments supplied to Shadow()
+  if (!is.null(prior_density_override) & !is.null(prior_par_override)) {
+    stop("unexpected 'prior' and 'prior_par': only one must be supplied to Shadow()")
+  }
+  if (!is.null(prior_density_override)) {
+    o$prior_dist <- "RAW"
+    o$prior_par  <- prior_density_override
+  }
+  if (!is.null(prior_par_override)) {
+    o$prior_dist <- "NORMAL"
+    o$prior_par  <- prior_par_override
+  }
+
+  o$prior_dist <- toupper(o$prior_dist)
+
+  # if prior_par is a vector, expand to an examinee-wise list
+  if (is.vector(o$prior_par)) {
+    o$prior_par <- lapply(1:constants$nj, function(x) o$prior_par)
+  }
+
+  # if prior_par is a matrix, expand to an examinee-wise list
+  if (is.matrix(o$prior_par)) {
+    o$prior_par <- apply(o$prior_par, 1, function(x) {x}, simplify = FALSE)
+  }
+
+  # if prior_par is a list, validate
+  if (is.list(o$prior_par)) {
+    if (length(o$prior_par) != constants$nj) {
+      stop("unexpected 'prior_par': could not be expanded to a length-nj list (must be a length-2 vector, an nj * 2 matrix, or a length-nj list)")
+    }
+    n_prior_par <- unlist(lapply(o$prior_par, length))
+    if (o$prior_dist == "NORMAL" & any(n_prior_par != 2)) {
+      stop("unexpected 'prior_par': for 'NORMAL' distribution, each list element must be a length-2 vector")
+    }
+    if (o$prior_dist == "UNIFORM" & any(n_prior_par != 2)) {
+      stop("unexpected 'prior_par': for 'UNIFORM' distribution, each list element must be a length-2 vector")
+    }
+    if (o$prior_dist == "RAW" & any(n_prior_par != constants$nq)) {
+      stop("unexpected 'prior_par': for 'RAW' distribution, each list element must be a length-nq vector")
+    }
+  }
+
+  return(o)
+
+}
+
+#' @noRd
+initializePosterior <- function(config, constants, item_pool, posterior_constants) {
 
   o <- list()
 
-  o$likelihood <- rep(1, nq)
+  o$likelihood <- rep(1, constants$nq)
   o$posterior  <- NULL
 
-  if (is.null(prior) && is.null(prior_par)) {
-    o$posterior <- generateDistributionFromPriorPar(
-      toupper(config@interim_theta$prior_dist),
-      config@interim_theta$prior_par,
-      theta_grid, nj
-    )
-  }
-  if (is.null(prior) && !is.null(prior_par)) {
-    o$posterior <- generateDistributionFromPriorPar(
-      "NORMAL",
-      prior_par,
-      theta_grid, nj
-    )
-  }
-  if (is.vector(prior) && length(prior) == nq) {
-    o$posterior <- matrix(prior, nj, nq, byrow = TRUE)
-  }
-  if (is.matrix(prior) && all(dim(prior) == c(nj, nq))) {
-    o$posterior <- prior
-  }
-  if (is.null(o$posterior)) {
-    stop("unrecognized 'prior': must be a vector of length nq, or a nj * nq matrix")
-  }
+  o$posterior <- generateDensityFromPriorPar(
+    config@interim_theta,
+    constants$theta_q,
+    constants$nj
+  )
 
   interim_method <- toupper(config@interim_theta$method)
   final_method   <- toupper(config@final_theta$method)
   if (any(c(interim_method, final_method) %in% c("FB"))) {
-    o$ipar_list <- iparPosteriorSample(pool, posterior_constants$n_sample)
+    o$ipar_list <- iparPosteriorSample(item_pool, posterior_constants$n_sample)
   }
 
   return(o)
@@ -67,44 +94,62 @@ getPosteriorConstants <- function(config) {
 }
 
 #' @noRd
-generateDistributionFromPriorPar <- function(dist_type, prior_par, theta_grid, nj) {
+generateDensityFromPriorPar <- function(config_theta, theta_q, nj) {
 
-  nq <- length(theta_grid)
-  m  <- NULL
+  nq <- nrow(theta_q)
+  prior_density <- NULL
 
-  if (dist_type == "NORMAL" && is.vector(prior_par) && length(prior_par) == 2) {
-    x <- dnorm(theta_grid, mean = prior_par[1], sd = prior_par[2])
-    m <- matrix(x, nj, nq, byrow = TRUE)
-  }
-  if (dist_type == "NORMAL" && is.matrix(prior_par) && all(dim(prior_par) == c(nj, 2))) {
-    m <- matrix(NA, nj, nq, byrow = TRUE)
+  if (config_theta$prior_dist == "NORMAL") {
+    prior_density <- matrix(NA, nj, nq, byrow = TRUE)
     for (j in 1:nj) {
-      m[j, ] <- dnorm(theta_grid, mean = prior_par[j, 1], sd = prior_par[j, 2])
+      prior_density[j, ] <- dnorm(
+        theta_q,
+        mean = config_theta$prior_par[[j]][1],
+        sd   = config_theta$prior_par[[j]][2]
+      )
     }
+    return(prior_density)
   }
-  if (dist_type == "UNIFORM") {
-    x <- 1
-    m <- matrix(x, nj, nq, byrow = TRUE)
+  if (config_theta$prior_dist == "UNIFORM") {
+    prior_density <- matrix(1, nj, nq, byrow = TRUE)
+    for (j in 1:nj) {
+      prior_density[j, ] <- dunif(
+        theta_q,
+        min = config_theta$prior_par[[j]][1],
+        max = config_theta$prior_par[[j]][2]
+      )
+    }
+    return(prior_density)
   }
-  if (is.null(m)) {
-    stop("unrecognized 'prior_par': must be a vector c(mean, sd), or a nj * 2 matrix")
+  if (config_theta$prior_dist == "RAW") {
+    prior_density <- matrix(NA, nj, nq, byrow = TRUE)
+    for (j in 1:nj) {
+      prior_density[j, 1:nq] <- config_theta$prior_par[[j]][1:nq]
+    }
+    return(prior_density)
   }
-
-  return(m)
 
 }
 
 #' @noRd
-parsePriorPar <- function(prior_par, nj, j, config_prior_par) {
+generateSampleFromPriorPar <- function(config_theta, j, posterior_constants) {
 
-  if (is.vector(prior_par) && length(prior_par) == 2) {
-    return(prior_par)
+  if (config_theta$prior_dist == "NORMAL") {
+    prior_sample <- rnorm(
+      posterior_constants$n_sample,
+      mean = config_theta$prior_par[[j]][1],
+      sd   = config_theta$prior_par[[j]][2]
+    )
+    return(prior_sample)
   }
-  if (is.matrix(prior_par) && all(dim(prior_par) == c(nj, 2))) {
-    return(prior_par[j, ])
+  if (config_theta$prior_dist == "UNIFORM") {
+    prior_sample <- runif(
+      posterior_constants$n_sample,
+      min = config_theta$prior_par[[j]][1],
+      max = config_theta$prior_par[[j]][2]
+    )
+    return(prior_sample)
   }
-
-  return(config_prior_par)
 
 }
 
@@ -121,22 +166,11 @@ applyThin <- function(posterior_sample, posterior_constants) {
 
 }
 
-#' @noRd
-getPriorSample <- function(arg_mean, arg_sd, posterior_constants) {
-
-  prior_sample <- rnorm(
-    posterior_constants$n_sample,
-    mean = arg_mean,
-    sd   = arg_sd
-  )
-
-  return(prior_sample)
-
-}
 
 #' @noRd
 getSegmentProb <- function(posterior_sample, constants) {
 
+  # find_segment() needs to be updated for multidimensional segments
   sample_segment                   <- find_segment(posterior_sample, constants$segment_cut)
   segment_distribution             <- table(sample_segment) / length(sample_segment)
   segment_classified               <- as.numeric(names(segment_distribution))

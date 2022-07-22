@@ -1,73 +1,6 @@
 #' @include static_functions.R
 NULL
 
-#' @rdname simResp-methods
-#' @aliases simResp,item_pool_cluster,numeric-method
-setMethod(
-  f = "simResp",
-  signature = c("item_pool_cluster", "list"),
-  definition = function(object, theta) {
-    if (length(theta) != length(object@np)) {
-      data <- vector(mode = "list", length = object@np)
-      for (i in 1:object@np) {
-        if (all(!is.na(theta[[i]]))) {
-          data[[i]] <- simResp(object@pools[[i]], theta[[i]])
-        } else {
-          stop(paste0("invalid values in theta", "[[", i, "]]"))
-        }
-      }
-      return(data)
-    } else {
-      stop("length of theta not equal to np")
-    }
-  }
-)
-
-#' Generate a test cluster object
-#'
-#' Generate a \code{\linkS4class{test_cluster}} object
-#'
-#' @param object An \code{\linkS4class{item_pool_cluster}} object
-#' @param theta A grid of theta values
-#' @param true_theta An optional vector of true theta values to simulate response data
-#'
-#' @docType methods
-#' @rdname makeTestCluster-methods
-setGeneric(
-  name = "makeTestCluster",
-  def = function(object, theta, true_theta) {
-    standardGeneric("makeTestCluster")
-  }
-)
-
-#' @docType methods
-#' @rdname makeTestCluster-methods
-setMethod(
-  f = "makeTestCluster",
-  signature = c("item_pool_cluster", "numeric", "numeric"),
-  definition = function(object, theta, true_theta) {
-    tests <- vector(mode = "list", length = object@np)
-    for (p in 1:object@np) {
-      tests[[p]] <- makeTest(object@pools[[p]], theta, true_theta)
-    }
-    return(new("test_cluster", nt = object@np, names = object@names))
-  }
-)
-
-#' @docType methods
-#' @rdname makeTestCluster-methods
-setMethod(
-  f = "makeTestCluster",
-  signature = c("item_pool_cluster", "numeric", "list"),
-  definition = function(object, theta, true_theta) {
-    tests <- vector(mode = "list", length = object@np)
-    for (p in 1:object@np) {
-      tests[[p]] <- makeTest(object@pools[[p]], theta, true_theta[[p]])
-    }
-    return(new("test_cluster", nt = object@np, names = object@names))
-  }
-)
-
 #' Run adaptive test assembly
 #'
 #' \code{\link{Shadow}} is a test assembly function to perform adaptive test assembly based on the generalized shadow-test framework.
@@ -76,8 +9,14 @@ setMethod(
 #' @template constraints-param
 #' @param true_theta (optional) true theta values to use in simulation. Either \code{true_theta} or \code{data} must be supplied.
 #' @param data (optional) a matrix containing item response data to use in simulation. Either \code{true_theta} or \code{data} must be supplied.
-#' @param prior (optional) prior density at each \code{config@theta_grid}. This overrides \code{prior_par}. Can be a vector to use the same prior for all \emph{nj} participants, or a \emph{nj}-row matrix to use a different prior for each participant.
-#' @param prior_par (optional) normal distribution parameters \code{c(mean, sd)} to use as prior. Can be a vector to use the same prior for all \emph{nj} participants, or a \emph{nj}-row matrix to use a different prior for each participant.
+#' @param prior (optional) density at each \code{config@theta_grid} to use as prior.
+#' Must be a length-\emph{nq} vector or a \emph{nj * nq} matrix.
+#' This overrides \code{prior_dist} and \code{prior_par} in the config.
+#' \code{prior} and \code{prior_par} cannot be used simultaneously.
+#' @param prior_par (optional) normal distribution parameters \code{c(mean, sd)} to use as prior.
+#' Must be a length-\emph{nq} vector or a \emph{nj * nq} matrix.
+#' This overrides \code{prior_dist} and \code{prior_par} in the config.
+#' \code{prior} and \code{prior_par} cannot be used simultaneously.
 #' @param exclude (optional) a list containing item names in \code{$i} and set names in \code{$s} to exclude from selection for each participant. The length of the list must be equal to the number of participants.
 #' @param include_items_for_estimation (optional) an examinee-wise list containing:
 #' \itemize{
@@ -131,15 +70,30 @@ setMethod(
       }
     }
 
-    pool                <- constraints@pool
-    model               <- sanitizeModel(pool@model)
-    all_data            <- makeData(pool, true_theta, data, config, seed)
-    constants           <- getConstants(constraints, config, data, true_theta, all_data$max_info)
-    info_fixed_theta    <- getInfoFixedTheta(config@item_selection, constants, all_data$test, pool, model)
-    posterior_constants <- getPosteriorConstants(config)
-    posterior_record    <- initializePosterior(prior, prior_par, config, constants, pool, posterior_constants)
-    initial_theta       <- initializeTheta(config, constants, posterior_record)
-    exclude_index       <- getIndexOfExcludedEntry(exclude, constraints)
+    if (inherits(true_theta, "numeric")) {
+      true_theta <- matrix(true_theta, , 1)
+    }
+
+    item_pool             <- constraints@pool
+    model                 <- sanitizeModel(item_pool@model)
+    simulation_data_cache <- makeSimulationDataCache(
+      item_pool = item_pool,
+      info_type = "FISHER",
+      theta_grid = config@theta_grid,
+      seed = seed,
+      true_theta = true_theta,
+      response_data = data
+    )
+    constants             <- getConstants(constraints, config, data, true_theta, simulation_data_cache@max_info)
+    config@interim_theta  <- parsePriorParameters(config@interim_theta, constants, prior, prior_par)
+    config@final_theta    <- parsePriorParameters(config@final_theta  , constants, prior, prior_par)
+    posterior_constants   <- getPosteriorConstants(config)
+    posterior_record      <- initializePosterior(config, constants, item_pool, posterior_constants)
+    initial_theta         <- initializeTheta(config, constants, posterior_record)
+    exclude_index         <- getIndexOfExcludedEntry(exclude, constraints)
+
+    # Only used if config@item_selection$method = "FIXED"
+    info_fixed_theta      <- getInfoFixedTheta(config@item_selection, constants, item_pool, model)
 
     if (constants$use_shadow) {
       refresh_shadow <- initializeShadowEngine(constants, config@refresh_policy)
@@ -184,7 +138,7 @@ setMethod(
       o@simulee_id <- j
 
       if (!is.null(true_theta)) {
-        o@true_theta <- true_theta[j]
+        o@true_theta <- true_theta[j, ]
       }
 
       o@prior <- posterior_record$posterior[j, ]
@@ -192,10 +146,10 @@ setMethod(
       o@administered_item_resp      <- rep(NA_real_, constants$max_ni)
       o@administered_stimulus_index <- NaN
       o@theta_segment_index         <- rep(NA_real_, constants$max_ni)
-      o@interim_theta_est           <- rep(NA_real_, constants$max_ni)
-      o@interim_se_est              <- rep(NA_real_, constants$max_ni)
+      o@interim_theta_est           <- matrix(NA_real_, constants$max_ni, constants$nd)
+      o@interim_se_est              <- matrix(NA_real_, constants$max_ni, constants$nd)
       o@shadow_test                 <- vector("list", constants$max_ni)
-      o@max_cat_pool                <- pool@max_cat
+      o@max_cat_pool                <- item_pool@max_cat
       o@test_length_constraints     <- constants$max_ni
       o@ni_pool                     <- constants$ni
       o@ns_pool                     <- constants$ns
@@ -203,9 +157,11 @@ setMethod(
       o@item_index_by_stimulus      <- constraints@item_index_by_stimulus
 
       current_theta <- parseInitialTheta(
-        config@interim_theta, initial_theta, prior_par,
-        constants$nj, j,
-        posterior_constants)
+        config@interim_theta,
+        initial_theta,
+        j,
+        posterior_constants
+      )
       o@initial_theta_est <- current_theta$theta
 
       # Simulee: initialize stimulus record
@@ -239,8 +195,8 @@ setMethod(
       if (!is.null(include_items_for_estimation)) {
         augment_item_pool  <- include_items_for_estimation[[j]]$administered_item_pool
         augment_item_resp  <- include_items_for_estimation[[j]]$administered_item_resp
-        augment_item_index <- pool@ni + 1:augment_item_pool@ni
-        augmented_pool <- combineItemPool(pool, augment_item_pool, unique = FALSE, verbose = FALSE)
+        augment_item_index <- item_pool@ni + 1:augment_item_pool@ni
+        augmented_item_pool <- combineItemPool(item_pool, augment_item_pool, unique = FALSE, verbose = FALSE)
       }
 
       # Simulee: administer items
@@ -251,8 +207,13 @@ setMethod(
 
         position <- position + 1
         info_current_theta <- computeInfoAtCurrentTheta(
-          config@item_selection, j, info_fixed_theta, current_theta, pool, model,
-          posterior_record, all_data$test@info
+          config@item_selection, j,
+          current_theta,
+          item_pool,
+          model,
+          posterior_record,
+          info_fixed_theta,               # Only used if config@item_selection$method = "FIXED"
+          simulation_data_cache@info_grid # Only used if config@item_selection$method = "MPWI"
         )
 
         # Item position / simulee: do shadow test assembly
@@ -341,30 +302,26 @@ setMethod(
 
         # Item position / simulee: record which item was administered
 
+        o@administered_item_ncat[position] <- item_pool@NCAT[o@administered_item_index[position]]
+
+        # Item position / simulee: simulate examinee response
+
         if (!is.null(seed)) {
+          # if seed is available, generate response data on the fly
           set.seed((seed * 345) + (j * 123) + o@administered_item_index[position])
           o@administered_item_resp[position] <- simResp(
-            pool[o@administered_item_index[position]],
+            item_pool[o@administered_item_index[position]],
             o@true_theta
           )
-          o@administered_item_ncat[position] <- pool@NCAT[o@administered_item_index[position]]
         }
         if (is.null(seed)) {
-          o@administered_item_resp[position] <- all_data$test@data[j, o@administered_item_index[position]]
-          o@administered_item_ncat[position] <- pool@NCAT[o@administered_item_index[position]]
+          # if seed is empty, use pregenerated response data
+          o@administered_item_resp[position] <- simulation_data_cache@response_data[j, o@administered_item_index[position]]
         }
 
         # Item position / simulee: update posterior
 
-        if (!is.null(seed)) {
-          prob_matrix_current_item <- calcProb(
-            pool[o@administered_item_index[position]],
-            constants$theta_q
-          )[[1]]
-        }
-        if (is.null(seed)) {
-          prob_matrix_current_item <- all_data$test@prob[[o@administered_item_index[position]]]
-        }
+        prob_matrix_current_item <- simulation_data_cache@prob_grid[[o@administered_item_index[position]]]
         prob_resp_current_item   <- prob_matrix_current_item[, o@administered_item_resp[position] + 1]
         posterior_record <- updatePosterior(posterior_record, j, prob_resp_current_item)
 
@@ -389,14 +346,14 @@ setMethod(
           prob_resp_supplied_items <- apply(prob_resp_supplied_items, 1, prod)
 
           augmented_posterior_record <- updatePosterior(posterior_record, j, prob_resp_supplied_items)
-          augmented_pool             <- augmented_pool
+          augmented_item_pool        <- augmented_item_pool
           augmented_item_index       <- c(augment_item_index, o@administered_item_index[1:position])
           augmented_item_resp        <- c(augment_item_resp,  o@administered_item_resp[1:position])
 
         } else {
 
           augmented_posterior_record <- posterior_record
-          augmented_pool             <- pool
+          augmented_item_pool        <- item_pool
           augmented_item_index       <- o@administered_item_index[1:position]
           augmented_item_resp        <- o@administered_item_resp[1:position]
 
@@ -408,7 +365,7 @@ setMethod(
           o, j, position,
           current_theta,
           augmented_posterior_record, posterior_record,
-          augmented_pool, pool, model,
+          augmented_item_pool, item_pool, model,
           augmented_item_index,
           augmented_item_resp,
           include_items_for_estimation,
@@ -417,10 +374,10 @@ setMethod(
           posterior_constants
         )
 
-        theta_change                   <- o@interim_theta_est[position] - current_theta$theta
+        theta_change                   <- o@interim_theta_est[position, ] - current_theta$theta
         current_theta$posterior_sample <- o@posterior_sample
-        current_theta$theta            <- o@interim_theta_est[position]
-        current_theta$se               <- o@interim_se_est[position]
+        current_theta$theta            <- o@interim_theta_est[position, ]
+        current_theta$se               <- o@interim_se_est[position, ]
 
         # Item position / simulee: prepare for the next item position
 
@@ -439,11 +396,11 @@ setMethod(
       # Simulee: test complete, estimate theta
       o <- estimateFinalTheta(
         o, j, position,
-        augmented_pool, pool, model,
+        augmented_item_pool, item_pool, model,
         augment_item_index,
         augment_item_resp,
         include_items_for_estimation,
-        posterior_record, prior_par,
+        posterior_record,
         config,
         constants,
         posterior_constants
@@ -511,33 +468,27 @@ setMethod(
       freq_infeasible <- NULL
     }
 
-    out                             <- new("output_Shadow_all")
-    out@output                      <- o_list
-    out@pool                        <- pool
-    out@config                      <- config
-    out@true_theta                  <- true_theta
-    out@constraints                 <- constraints
-    out@prior                       <- prior
-    out@prior_par                   <- prior_par
-    out@final_theta_est             <- final_theta_est
-    out@final_se_est                <- final_se_est
-    out@exposure_rate               <- exposure_rate
-    out@usage_matrix                <- usage_matrix
-    out@true_segment_count          <- segment_record$count_true
-    out@est_segment_count           <- segment_record$count_est
-    out@eligibility_stats           <- exposure_record
-    out@check_eligibility_stats     <- diagnostic_stats$elg_stats
-    out@no_fading_eligibility_stats <- diagnostic_stats$elg_stats_nofade
-    out@freq_infeasible             <- freq_infeasible
+    o                             <- new("output_Shadow_all")
+    o@output                      <- o_list
+    o@pool                        <- item_pool
+    o@config                      <- config
+    o@true_theta                  <- true_theta
+    o@constraints                 <- constraints
+    o@prior                       <- prior
+    o@prior_par                   <- prior_par
+    o@final_theta_est             <- final_theta_est
+    o@final_se_est                <- final_se_est
+    o@exposure_rate               <- exposure_rate
+    o@usage_matrix                <- usage_matrix
+    o@true_segment_count          <- segment_record$count_true
+    o@est_segment_count           <- segment_record$count_est
+    o@eligibility_stats           <- exposure_record
+    o@check_eligibility_stats     <- diagnostic_stats$elg_stats
+    o@no_fading_eligibility_stats <- diagnostic_stats$elg_stats_nofade
+    o@freq_infeasible             <- freq_infeasible
+    o@data <- simulation_data_cache@response_data
+    return(o)
 
-    if (is.null(seed)) {
-      out@data <- all_data$test@data
-    }
-    if (!is.null(seed)) {
-      out@data <- NULL
-    }
-
-    return(out)
   }
 )
 
@@ -582,7 +533,6 @@ RE <- function(RMSE_foc, RMSE_ref) {
 #' @param usage_matrix A matrix of item usage data from \code{\link{Shadow}}.
 #' @param true_theta A vector of true theta values.
 checkConstraints <- function(constraints, usage_matrix, true_theta = NULL) {
-
 
   raw_constraints <- constraints@constraints
   list_constraints <- constraints@list_constraints

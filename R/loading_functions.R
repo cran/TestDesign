@@ -1,4 +1,11 @@
-#' @include item_functions.R
+#' @include calc_prob_functions.r
+#' @include calc_escore_functions.r
+#' @include calc_location_functions.r
+#' @include calc_fisher_functions.r
+#' @include calc_loglikelihood_functions.r
+#' @include calc_jacobian_functions.r
+#' @include calc_hessian_functions.r
+#' @include sim_resp_functions.r
 NULL
 
 #' Load item pool
@@ -89,150 +96,195 @@ loadItemPool <- function(ipar, ipar_se = NULL, file = NULL, se_file = NULL, uniq
     }
   }
 
-  pool       <- new("item_pool")
-  pool@raw   <- ipar
-  ni         <- nrow(ipar)
-  pool@index <- 1:ni
-  pool@id    <- as.character(ipar[[1]])
-  model      <- ipar[[2]]
-  NCAT       <- numeric(ni)
-  parms      <- vector(mode = "list", length = ni)
-  nfields    <- rowSums(!is.na(ipar))
-  valid      <- logical(ni)
-  pool@ipar  <- matrix(NA, nrow = ni, ncol = max(nfields) - 2)
+  item_pool       <- new("item_pool")
+  item_pool@raw   <- ipar
+  ni              <- nrow(ipar)
+  item_pool@index <- 1:ni
+  item_pool@id    <- as.character(ipar[[1]])
+  model           <- ipar[[2]]
+  NCAT            <- numeric(ni)
+  parms           <- vector(mode = "list", length = ni)
+  n_values        <- rowSums(!is.na(ipar))
+  n_nonpars       <- 2
+  n_pars          <- n_values - n_nonpars
+  valid           <- logical(ni)
+  item_pool@ipar  <- matrix(NA, nrow = ni, ncol = max(n_pars))
+  item_pool@se    <- matrix(NA, nrow = ni, ncol = max(n_pars))
 
-  load_se <- FALSE
-
-  if (!is.null(ipar_se)) {
+  # parse parameter SEs
+  while (!is.null(ipar_se)) {
     if (inherits(ipar_se, "data.frame")) {
       ipar_se <- ipar_se
-      load_se <- TRUE
-    } else if (inherits(ipar_se, "character")) {
-      ipar_se <- read.csv(ipar_se, header = TRUE, as.is = TRUE)
-      load_se <- TRUE
+      break
     }
+    if (inherits(ipar_se, "character")) {
+      ipar_se <- read.csv(ipar_se, header = TRUE, as.is = TRUE)
+      break
+    }
+    break
   }
 
-  if (load_se) {
-    se <- matrix(NA, nrow = ni, ncol = max(nfields) - 2)
+  if (is.null(ipar_se)) {
+    ipar_se <- ipar
+    for (j in 1:dim(ipar)[2]) {
+      if (inherits(ipar_se[, j], "numeric")) {
+        ipar_se[, j] <- 0
+      }
+    }
   }
 
   for (i in 1:ni) {
+
     if (model[i] == 1 | model[i] == "1PL") {
+
       NCAT[i] <- 2
-      b <- ipar[[3]][i]
-      pool@model[i] <- "item_1PL"
+      b    <- ipar[   i, n_nonpars + 1]
+      b_se <- ipar_se[i, n_nonpars + 1]
+
+      valid[i] <- TRUE
+
+      item_pool@model[i] <- "item_1PL"
       parms[[i]] <- new("item_1PL", difficulty = b)
-      valid[i] <- TRUE
 
-      j <- 1
-      pool@ipar[i, j] <- b
-      if (load_se) {
-        se[i, j] <- as.matrix(ipar_se[i, 2 + j])
-      }
-    } else if (model[i] == 2 | model[i] == "2PL") {
-      NCAT[i] <- 2
-      a <- ipar[[3]][i]
-      b <- ipar[[4]][i]
-      if (a > 0) {
-        pool@model[i] <- "item_2PL"
-        parms[[i]] <- new("item_2PL", slope = a, difficulty = b)
-        valid[i] <- TRUE
+      item_pool@ipar[i, 1] <- b
+      item_pool@se[  i, 1] <- b_se
 
-        j <- 1:2
-        pool@ipar[i, j] <- c(a, b)
-        if (load_se) {
-          se[i, j] <- as.matrix(ipar_se[i, 2 + j])
-        }
-      }
-    } else if (model[i] == 3 | model[i] == "3PL") {
-      NCAT[i] <- 2
-      a <- ipar[[3]][i]
-      b <- ipar[[4]][i]
-      c <- ipar[[5]][i]
-      if (a > 0 && c >= 0 && c < 1) {
-        pool@model[i] <- "item_3PL"
-        parms[[i]] <- new("item_3PL", slope = a, difficulty = b, guessing = c)
-        valid[i] <- TRUE
+      next
 
-        j <- 1:3
-        pool@ipar[i, j] <- c(a, b, c)
-        if (load_se) {
-          se[i, j] <- as.matrix(ipar_se[i, 2 + j])
-        }
-      }
-    } else if (model[i] == 4 | model[i] == "PC") {
-      NCAT[i] <- nfields[i] - 1
-      b <- as.numeric(ipar[i, 3:nfields[i]])
-      pool@model[i] <- "item_PC"
-      parms[[i]] <- new("item_PC", threshold = b, ncat = NCAT[i])
-      valid[i] <- TRUE
-
-      j <- 1:(NCAT[i] - 1)
-      pool@ipar[i, j] <- b
-      if (load_se) {
-        se[i, j] <- as.matrix(ipar_se[i, 2 + j])
-      }
-    } else if (model[i] == 5 | model[i] == "GPC") {
-      NCAT[i] <- nfields[i] - 2
-      a <- as.numeric(ipar[[3]][i])
-      b <- as.numeric(ipar[i, 4:nfields[i]])
-      if (a > 0) {
-        pool@model[i] <- "item_GPC"
-        parms[[i]] <- new("item_GPC", slope = a, threshold = b, ncat = NCAT[i])
-        valid[i] <- TRUE
-
-        j <- 1:NCAT[i]
-        pool@ipar[i, j] <- c(a, b)
-        if (load_se) {
-          se[i, j] <- as.matrix(ipar_se[i, 2 + j])
-        }
-      }
-    } else if (model[i] == 6 | model[i] == "GR") {
-      NCAT[i] <- nfields[i] - 2
-      a <- as.numeric(ipar[[3]][i])
-      b <- as.numeric(ipar[i, 4:nfields[i]])
-      if (a > 0 && (!is.unsorted(b))) {
-        pool@model[i] <- "item_GR"
-        parms[[i]] <- new("item_GR", slope = a, category = b, ncat = NCAT[i])
-        valid[i] <- TRUE
-
-        j <- 1:NCAT[i]
-        pool@ipar[i, j] <- c(a, b)
-        if (load_se) {
-          se[i, j] <- as.matrix(ipar_se[i, 2 + j])
-        }
-      }
-    } else {
-      stop(paste("Item", i, ": unknown IRT model specified - valid models are 1: 1PL, 2: 2PL, 3: 3PL, 4: PC, 5: GPC, or 6: GR"))
     }
+
+    if (model[i] == 2 | model[i] == "2PL") {
+
+      NCAT[i] <- 2
+      a    <- ipar[   i, n_nonpars + 1]
+      b    <- ipar[   i, n_nonpars + 2]
+      a_se <- ipar_se[i, n_nonpars + 1]
+      b_se <- ipar_se[i, n_nonpars + 2]
+
+      if (a <= 0) { valid[i] <- FALSE; next }
+      valid[i] <- TRUE
+
+      item_pool@model[i] <- "item_2PL"
+      parms[[i]] <- new("item_2PL", slope = a, difficulty = b)
+
+      item_pool@ipar[i, 1:2] <- c(a   , b)
+      item_pool@se[  i, 1:2] <- c(a_se, b_se)
+
+      next
+
+    }
+
+    if (model[i] == 3 | model[i] == "3PL") {
+
+      NCAT[i] <- 2
+      a    <- ipar[   i, n_nonpars + 1]
+      b    <- ipar[   i, n_nonpars + 2]
+      c    <- ipar[   i, n_nonpars + 3]
+      a_se <- ipar_se[i, n_nonpars + 1]
+      b_se <- ipar_se[i, n_nonpars + 2]
+      c_se <- ipar_se[i, n_nonpars + 3]
+
+      if (a <= 0) { valid[i] <- FALSE; next }
+      if (c <  0) { valid[i] <- FALSE; next }
+      if (c >= 1) { valid[i] <- FALSE; next }
+      valid[i] <- TRUE
+
+      item_pool@model[i] <- "item_3PL"
+      parms[[i]] <- new("item_3PL", slope = a, difficulty = b, guessing = c)
+
+      item_pool@ipar[i, 1:3] <- c(a   , b   , c)
+      item_pool@se[  i, 1:3] <- c(a_se, b_se, c_se)
+
+      next
+
+    }
+
+    if (model[i] == 4 | model[i] == "PC") {
+
+      NCAT[i] <- n_pars[i] + 1
+      b    <- as.numeric(ipar[   i, n_nonpars + 1:n_pars[i]])
+      b_se <- as.numeric(ipar_se[i, n_nonpars + 1:n_pars[i]])
+
+      valid[i] <- TRUE
+
+      item_pool@model[i] <- "item_PC"
+      parms[[i]] <- new("item_PC", threshold = b, ncat = NCAT[i])
+
+      item_pool@ipar[i, 1:n_pars[i]] <- b
+      item_pool@se[  i, 1:n_pars[i]] <- b_se
+
+      next
+
+    }
+
+    if (model[i] == 5 | model[i] == "GPC") {
+
+      NCAT[i] <- (n_pars[i] - 1) + 1
+      a    <- as.numeric(ipar[   i, n_nonpars + 1])
+      b    <- as.numeric(ipar[   i, n_nonpars + 2:n_pars[i]])
+      a_se <- as.numeric(ipar_se[i, n_nonpars + 1])
+      b_se <- as.numeric(ipar_se[i, n_nonpars + 2:n_pars[i]])
+
+      if (a <= 0) { valid[i] <- FALSE; next }
+      valid[i] <- TRUE
+
+      item_pool@model[i] <- "item_GPC"
+      parms[[i]] <- new("item_GPC", slope = a, threshold = b, ncat = NCAT[i])
+
+      item_pool@ipar[i, 1:n_pars[i]] <- c(a   , b)
+      item_pool@se[  i, 1:n_pars[i]] <- c(a_se, b_se)
+
+      next
+
+    }
+
+    if (model[i] == 6 | model[i] == "GR") {
+
+      NCAT[i] <- (n_pars[i] - 1) + 1
+      a    <- as.numeric(ipar[   i, n_nonpars + 1])
+      b    <- as.numeric(ipar[   i, n_nonpars + 2:n_pars[i]])
+      a_se <- as.numeric(ipar_se[i, n_nonpars + 1])
+      b_se <- as.numeric(ipar_se[i, n_nonpars + 2:n_pars[i]])
+
+      if (a <= 0)         { valid[i] <- FALSE; next }
+      if (is.unsorted(b)) { valid[i] <- FALSE; next }
+      valid[i] <- TRUE
+
+      item_pool@model[i] <- "item_GR"
+      parms[[i]] <- new("item_GR", slope = a, category = b, ncat = NCAT[i])
+
+      item_pool@ipar[i, 1:n_pars[i]] <- c(a   , b)
+      item_pool@se[  i, 1:n_pars[i]] <- c(a_se, b_se)
+
+      next
+
+    }
+
+    stop(
+      sprintf(
+        "Item %s: unexpected IRT model '%s' (valid models are 1PL, 2PL, 3PL, PC, GPC, GR)",
+        i, model[i]
+      )
+    )
+
   }
   if (sum(!valid) > 0) {
     stop(paste("Check the parameters for the following item(s):", paste((1:ni)[!valid], collapse = ", "), "\n"))
   }
 
-  pool@ni <- ni
-  pool@max_cat <- max(NCAT)
-  pool@NCAT <- NCAT
-  pool@parms <- parms
+  item_pool@ni <- ni
+  item_pool@max_cat <- max(NCAT)
+  item_pool@NCAT <- NCAT
+  item_pool@parms <- parms
 
-  if (load_se) {
-    pool@se <- se
-  } else {
-    pool@se <- pool@ipar * 0
-  }
-  if (max(rowSums(!is.na(pool@ipar))) != max(nfields) - 2) {
-    pool@ipar <- pool@ipar[, 1:max(rowSums(!is.na(pool@ipar)))]
-  }
+  tmp <- item_pool@raw
+  tmp[, 2 + 1:max(n_pars)] <- item_pool@se
+  item_pool@raw_se <- tmp
 
-  tmp <- pool@raw
-  tmp[, 3:max(nfields)] <- pool@se
-  pool@raw_se <- tmp
+  item_pool@unique <- unique
 
-  pool@unique <- unique
-
-  if (validObject(pool)) {
-    return(pool)
+  if (validObject(item_pool)) {
+    return(item_pool)
   }
 }
 

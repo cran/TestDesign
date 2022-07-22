@@ -29,7 +29,7 @@
 #' @importFrom methods new show validObject
 #' @importFrom logitnorm logit rlogitnorm
 #' @importFrom grDevices col2rgb dev.control dev.new dev.off pdf recordPlot dev.cur
-#' @importFrom stats runif dnorm rlnorm rnorm sd cor na.omit aggregate
+#' @importFrom stats rnorm runif dnorm dunif rlnorm sd cor na.omit aggregate
 #' @importFrom utils capture.output read.csv setTxtProgressBar txtProgressBar write.table packageVersion packageDescription menu combn
 #' @importFrom graphics abline lines axis grid layout legend mtext par plot.new points rect text strheight box
 #' @useDynLib TestDesign
@@ -83,4 +83,5 @@ setClassUnion("numeric_or_null"     , c("numeric"     , "NULL"))
 setClassUnion("matrix_or_null"      , c("matrix"      , "NULL"))
 setClassUnion("list_or_null"        , c("list"        , "NULL"))
 setClassUnion("recordedplot_or_null", c("recordedplot", "NULL"))
+setClassUnion("matrix_or_numeric"   , c("matrix", "numeric"))
 setClassUnion("matrix_or_numeric_or_null", c("matrix", "numeric", "NULL"))

@@ -42,7 +42,7 @@ EAP(object, select = NULL, prior, reset_prior = FALSE)
 
 \item{prior}{a prior distribution, a numeric vector for a common prior or a matrix for individualized priors. (default = \code{rep(1 / 81, 81)})}
 
-\item{reset_prior}{used for \code{\linkS4class{test_cluster}} objects. If \code{TRUE}, to reset the prior distribution before each test.}
+\item{reset_prior}{used for \code{\linkS4class{test_cluster}} objects. If \code{TRUE}, reset the prior distribution for each \code{\linkS4class{test}} object.}
 }
 \value{
 \code{\link{eap}} returns a list containing estimated values.

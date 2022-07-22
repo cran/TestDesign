@@ -6,7 +6,7 @@ estimateInterimTheta <- function(
   o, j, position,
   current_theta,
   augmented_posterior_record, posterior_record,
-  augmented_pool, pool, model,
+  augmented_item_pool, item_pool, model,
   augmented_item_index,
   augmented_item_resp,
   include_items_for_estimation,
@@ -15,12 +15,33 @@ estimateInterimTheta <- function(
   posterior_constants
 ) {
 
+  if (constants$use_hand_scored) {
+    if (
+      constants$item_is_hand_scored[o@administered_item_index[position]] &
+      position > 1
+    ) {
+      # skip update and reuse previous interim theta estimate
+      o@interim_theta_est[position, ] <- o@interim_theta_est[position - 1, ]
+      o@interim_se_est[position, ]    <- o@interim_se_est[position - 1, ]
+      return(o)
+    }
+    if (
+      constants$item_is_hand_scored[o@administered_item_index[position]] &
+      position == 1
+    ) {
+      # skip update and reuse previous interim theta estimate (starting theta)
+      o@interim_theta_est[position, ] <- o@initial_theta_est
+      o@interim_se_est[position, ]    <- NA
+      return(o)
+    }
+  }
+
   if (toupper(config@interim_theta$method) == "EAP") {
 
     interim_EAP <- computeEAPFromPosterior(augmented_posterior_record$posterior[j, ], constants$theta_q)
-    interim_EAP <- applyShrinkageCorrection(interim_EAP, config@interim_theta)
-    o@interim_theta_est[position] <- interim_EAP$theta
-    o@interim_se_est[position]    <- interim_EAP$se
+    interim_EAP <- applyShrinkageCorrection(interim_EAP, config@interim_theta, j)
+    o@interim_theta_est[position, ] <- interim_EAP$theta
+    o@interim_se_est[position, ]    <- interim_EAP$se
 
     return(o)
 
@@ -29,7 +50,7 @@ estimateInterimTheta <- function(
   if (toupper(config@interim_theta$method) == "MLE") {
 
     interim_EAP <- computeEAPFromPosterior(augmented_posterior_record$posterior[j, ], constants$theta_q)
-    interim_MLE <- mle(augmented_pool,
+    interim_MLE <- mle(augmented_item_pool,
       select        = augmented_item_index,
       resp          = augmented_item_resp,
       start_theta   = interim_EAP$theta,
@@ -43,8 +64,8 @@ estimateInterimTheta <- function(
       do_Fisher     = config@interim_theta$do_Fisher
     )
 
-    o@interim_theta_est[position] <- interim_MLE$th
-    o@interim_se_est[position]    <- interim_MLE$se
+    o@interim_theta_est[position, ] <- interim_MLE$th
+    o@interim_se_est[position, ]    <- interim_MLE$se
 
     return(o)
 
@@ -53,7 +74,7 @@ estimateInterimTheta <- function(
   if (toupper(config@interim_theta$method) == "MLEF") {
 
     interim_EAP <- computeEAPFromPosterior(augmented_posterior_record$posterior[j, ], constants$theta_q)
-    interim_MLEF <- mlef(augmented_pool,
+    interim_MLEF <- mlef(augmented_item_pool,
       select           = augmented_item_index,
       resp             = augmented_item_resp,
       fence_slope      = config@interim_theta$fence_slope,
@@ -69,8 +90,8 @@ estimateInterimTheta <- function(
       do_Fisher        = config@interim_theta$do_Fisher
     )
 
-    o@interim_theta_est[position] <- interim_MLEF$th
-    o@interim_se_est[position]    <- interim_MLEF$se
+    o@interim_theta_est[position, ] <- interim_MLEF$th
+    o@interim_se_est[position, ]    <- interim_MLEF$se
 
     return(o)
 
@@ -87,16 +108,16 @@ estimateInterimTheta <- function(
 
     interim_EB <- theta_EB_single(
       posterior_constants$n_sample, current_theta$theta, current_theta$se,
-      pool@ipar[current_item, ],
-      o@administered_item_resp[position], pool@NCAT[current_item],
+      item_pool@ipar[current_item, ],
+      o@administered_item_resp[position], item_pool@NCAT[current_item],
       model[current_item], 1, c(current_theta$theta, current_theta$se)
     )[, 1]
 
-    interim_EB                    <- applyThin(interim_EB, posterior_constants)
+    interim_EB <- applyThin(interim_EB, posterior_constants)
 
-    o@posterior_sample            <- interim_EB
-    o@interim_theta_est[position] <- mean(interim_EB)
-    o@interim_se_est[position]    <- sd(interim_EB)
+    o@posterior_sample <- interim_EB
+    o@interim_theta_est[position, ] <- mean(interim_EB)
+    o@interim_se_est[position, ]    <- sd(interim_EB)
 
     return(o)
 
@@ -114,16 +135,16 @@ estimateInterimTheta <- function(
     interim_FB <- theta_FB_single(
       posterior_constants$n_sample, current_theta$theta, current_theta$se,
       posterior_record$ipar_list[[current_item]],
-      pool@ipar[current_item, ],
-      o@administered_item_resp[position], pool@NCAT[current_item],
+      item_pool@ipar[current_item, ],
+      o@administered_item_resp[position], item_pool@NCAT[current_item],
       model[current_item], 1, c(current_theta$theta, current_theta$se)
     )[, 1]
 
-    interim_FB                    <- applyThin(interim_FB, posterior_constants)
+    interim_FB <- applyThin(interim_FB, posterior_constants)
 
-    o@posterior_sample            <- interim_FB
-    o@interim_theta_est[position] <- mean(interim_FB)
-    o@interim_se_est[position]    <- sd(interim_FB)
+    o@posterior_sample <- interim_FB
+    o@interim_theta_est[position, ] <- mean(interim_FB)
+    o@interim_se_est[position, ]    <- sd(interim_FB)
 
     return(o)
 
@@ -134,11 +155,11 @@ estimateInterimTheta <- function(
 #' @noRd
 estimateFinalTheta <- function(
   o, j, position,
-  augmented_pool, pool, model,
+  augmented_item_pool, item_pool, model,
   augment_item_index,
   augment_item_resp,
   include_items_for_estimation,
-  posterior_record, prior_par,
+  posterior_record,
   config,
   constants,
   posterior_constants
@@ -148,8 +169,8 @@ estimateFinalTheta <- function(
 
     # Skip final theta estimation if methods are identical
 
-    o@final_theta_est <- o@interim_theta_est[position]
-    o@final_se_est    <- o@interim_se_est[position]
+    o@final_theta_est <- o@interim_theta_est[position, ]
+    o@final_se_est    <- o@interim_se_est[position, ]
 
     return(o)
 
@@ -157,16 +178,15 @@ estimateFinalTheta <- function(
 
   if (toupper(config@final_theta$method == "EAP")) {
 
-    final_prior <- generateDistributionFromPriorPar(
-      toupper(config@final_theta$prior_dist),
-      config@final_theta$prior_par,
+    final_prior <- generateDensityFromPriorPar(
+      config@final_theta,
       constants$theta_q,
-      1
+      nj = 1
     )[1, ]
 
     o@posterior       <- o@likelihood * final_prior
     final_EAP <- computeEAPFromPosterior(o@posterior, constants$theta_q)
-    final_EAP <- applyShrinkageCorrection(final_EAP, config@final_theta)
+    final_EAP <- applyShrinkageCorrection(final_EAP, config@final_theta, j)
     o@final_theta_est <- final_EAP$theta
     o@final_se_est    <- final_EAP$se
 
@@ -179,10 +199,10 @@ estimateFinalTheta <- function(
     if (!is.null(include_items_for_estimation)) {
 
       final_MLE <- mle(
-        augmented_pool,
+        augmented_item_pool,
         select        = c(augment_item_index, o@administered_item_index[1:constants$max_ni]),
         resp          = c(augment_item_resp,  o@administered_item_resp[1:constants$max_ni]),
-        start_theta   = o@interim_theta_est[constants$max_ni],
+        start_theta   = o@interim_theta_est[constants$max_ni, ],
         max_iter      = config@final_theta$max_iter,
         crit          = config@final_theta$crit,
         theta_range   = config@final_theta$bound_ML,
@@ -198,10 +218,10 @@ estimateFinalTheta <- function(
     if (is.null(include_items_for_estimation)) {
 
       final_MLE <- mle(
-        pool,
+        item_pool,
         select        = o@administered_item_index[1:constants$max_ni],
         resp          = o@administered_item_resp[1:constants$max_ni],
-        start_theta   = o@interim_theta_est[constants$max_ni],
+        start_theta   = o@interim_theta_est[constants$max_ni, ],
         max_iter      = config@final_theta$max_iter,
         crit          = config@final_theta$crit,
         theta_range   = config@final_theta$bound_ML,
@@ -226,12 +246,12 @@ estimateFinalTheta <- function(
     if (!is.null(include_items_for_estimation)) {
 
       final_MLEF <- mlef(
-        augmented_pool,
+        augmented_item_pool,
         select           = c(augment_item_index, o@administered_item_index[1:constants$max_ni]),
         resp             = c(augment_item_resp,  o@administered_item_resp[1:constants$max_ni]),
         fence_slope      = config@final_theta$fence_slope,
         fence_difficulty = config@final_theta$fence_difficulty,
-        start_theta      = o@interim_theta_est[constants$max_ni],
+        start_theta      = o@interim_theta_est[constants$max_ni, ],
         max_iter         = config@final_theta$max_iter,
         crit             = config@final_theta$crit,
         theta_range      = config@final_theta$bound_ML,
@@ -247,12 +267,12 @@ estimateFinalTheta <- function(
     if (is.null(include_items_for_estimation)) {
 
       final_MLEF <- mlef(
-        pool,
+        item_pool,
         select           = o@administered_item_index[1:constants$max_ni],
         resp             = o@administered_item_resp[1:constants$max_ni],
         fence_slope      = config@final_theta$fence_slope,
         fence_difficulty = config@final_theta$fence_difficulty,
-        start_theta      = o@interim_theta_est[constants$max_ni],
+        start_theta      = o@interim_theta_est[constants$max_ni, ],
         max_iter         = config@final_theta$max_iter,
         crit             = config@final_theta$crit,
         theta_range      = config@final_theta$bound_ML,
@@ -275,19 +295,21 @@ estimateFinalTheta <- function(
   if (toupper(config@final_theta$method) == "EB") {
 
     final_prior <- getInitialThetaPrior(
-      config@final_theta, prior_par, constants$nj, j,
-      posterior_constants)
+      config@final_theta,
+      j,
+      posterior_constants
+    )
 
     final_EB <- theta_EB(
       posterior_constants$n_sample, final_prior$theta, final_prior$se,
-      pool@ipar[o@administered_item_index[1:position], ],
-      o@administered_item_resp[1:position], pool@NCAT[o@administered_item_index[1:position]],
+      item_pool@ipar[o@administered_item_index[1:position], ],
+      o@administered_item_resp[1:position], item_pool@NCAT[o@administered_item_index[1:position]],
       model[o@administered_item_index[1:position]], 1, c(final_prior$theta, final_prior$se)
     )
 
     final_EB           <- applyThin(final_EB, posterior_constants)
 
-    o@prior_par        <- final_prior$prior_par
+    o@prior_par        <- config@final_theta$prior_par[[j]]
     o@posterior_sample <- final_EB
     o@final_theta_est  <- mean(final_EB)
     o@final_se_est     <- sd(final_EB)
@@ -299,20 +321,22 @@ estimateFinalTheta <- function(
   if (toupper(config@final_theta$method) == "FB") {
 
     final_prior <- getInitialThetaPrior(
-      config@final_theta, prior_par, constants$nj, j,
-      posterior_constants)
+      config@final_theta,
+      j,
+      posterior_constants
+    )
 
     final_FB <- theta_FB(
       posterior_constants$n_sample, final_prior$theta, final_prior$se,
       posterior_record$ipar_list[o@administered_item_index[1:position]],
-      pool@ipar[o@administered_item_index[1:position], ],
-      o@administered_item_resp[1:position], pool@NCAT[o@administered_item_index[1:position]],
+      item_pool@ipar[o@administered_item_index[1:position], ],
+      o@administered_item_resp[1:position], item_pool@NCAT[o@administered_item_index[1:position]],
       model[o@administered_item_index[1:position]], 1, c(final_prior$theta, final_prior$se)
     )
 
     final_FB           <- applyThin(final_FB, posterior_constants)
 
-    o@prior_par        <- final_prior$prior_par
+    o@prior_par        <- config@final_theta$prior_par[[j]]
     o@posterior_sample <- final_FB
     o@final_theta_est  <- mean(final_FB)
     o@final_se_est     <- sd(final_FB)
@@ -502,7 +526,17 @@ setGeneric(
 setMethod(
   f = "MLE",
   signature = "test",
-  definition = function(object, select = NULL, start_theta = NULL, max_iter = 100, crit = 0.001, theta_range = c(-4, 4), truncate = FALSE, max_change = 1.0, do_Fisher = TRUE) {
+  definition = function(
+    object, select = NULL,
+    start_theta = NULL, max_iter = 100, crit = 0.001,
+    theta_range = c(-4, 4), truncate = FALSE,
+    max_change = 1.0,
+    do_Fisher = TRUE
+  ) {
+
+    # 'test' class is superseded by 'simulation_data_cache'
+    # maintainer preference: keep this function
+
     ni <- ncol(object@data)
     nj <- nrow(object@data)
     nq <- length(object@theta)
@@ -512,18 +546,18 @@ setMethod(
       resp <- object@data
     } else {
       if (!all(select %in% 1:object@pool@ni)) {
-        stop("select contains invalid item indices")
+        stop("MLE: 'select' contains invalid item indices")
       }
       resp <- object@data[, unique(select)]
     }
 
     if (!is.null(select)) {
       if (anyDuplicated(select) > 0) {
-        warning("select contains duplicated indices")
+        warning("MLE: 'select' contains duplicate indices")
         select <- select[-duplicated(select)]
       }
       if (!all(select %in% 1:ni)) {
-        stop("select contains invalid indices")
+        stop("MLE: 'select' contains invalid indices")
       }
       items <- select
     } else {
@@ -540,7 +574,7 @@ setMethod(
     } else if (length(start_theta) == 1) {
       start_theta <- rep(start_theta, nj)
     } else if (length(start_theta) != nj) {
-      stop("start_theta must be of length 1 or the number of examinees")
+      stop("MLE: 'start_theta' must be of length 1 or the number of examinees")
     }
 
     th <- numeric(nj)
@@ -620,6 +654,7 @@ setMethod(
   f = "MLE",
   signature = "test_cluster",
   definition = function(object, select = NULL, start_theta = NULL, max_iter = 100, crit = 0.001) {
+    # maintainer preference: keep this function
     MLE_cluster <- vector(mode = "list", length = object@nt)
     for (t in 1:object@nt) {
       MLE_cluster[[t]] <- MLE(object@tests[[t]], select = NULL, start_theta = start_theta, max_iter = max_iter, crit = crit)
@@ -741,7 +776,8 @@ setMethod(
           ID    = c("FENCE_LB", "FENCE_UB"),
           MODEL = rep("2PL", 2),
           PAR1  = rep(fence_slope, length.out = 2),
-          PAR2  = fence_difficulty
+          PAR2  = fence_difficulty,
+          stringsAsFactors = FALSE
         )
         item_fence <- loadItemPool(ipar_fence)
         object     <- object + item_fence
@@ -848,7 +884,7 @@ setMethod(
 #' @param resp item response on all (or selected) items in the \code{object} argument. Can be a vector, a matrix, or a data frame. \code{length(resp)} or \code{ncol(resp)} must be equal to the number of all (or selected) items.
 #' @param theta_grid the theta grid to use as quadrature points. (default = \code{seq(-4, 4, .1)})
 #' @param prior a prior distribution, a numeric vector for a common prior or a matrix for individualized priors. (default = \code{rep(1 / 81, 81)})
-#' @param reset_prior used for \code{\linkS4class{test_cluster}} objects. If \code{TRUE}, to reset the prior distribution before each test.
+#' @param reset_prior used for \code{\linkS4class{test_cluster}} objects. If \code{TRUE}, reset the prior distribution for each \code{\linkS4class{test}} object.
 #'
 #' @return \code{\link{eap}} returns a list containing estimated values.
 #' \itemize{
@@ -957,10 +993,14 @@ setMethod(
   f = "EAP",
   signature = "test",
   definition = function(object, select = NULL, prior, reset_prior = FALSE) {
+
+    # 'test' class is superseded by 'simulation_data_cache'
+    # maintainer preference: keep this function
+
     nj <- nrow(object@data)
     if (is.matrix(prior)) {
       nq <- ncol(prior)
-      if (nj != nrow(prior)) stop("nrow(prior) is not equal to nrow(data)")
+      if (nj != nrow(prior)) stop("EAP: nrow(prior) is not equal to nrow(data)")
       posterior <- prior
     } else {
       nq <- length(prior)
@@ -970,7 +1010,7 @@ setMethod(
       select <- 1:object@pool@ni
     } else {
       if (!all(select %in% 1:object@pool@ni)) {
-        stop("select contains invalid item indices")
+        stop("EAP: 'select' contains invalid item indices")
       }
     }
     for (i in unique(select)) {
@@ -998,6 +1038,7 @@ setMethod(
   f = "EAP",
   signature = "test_cluster",
   definition = function(object, select = NULL, prior, reset_prior = FALSE) {
+    # maintainer preference: keep this function
     EAP_cluster <- vector(mode = "list", length = object@nt)
     EAP_cluster[[1]] <- EAP(object@tests[[1]], select = select, prior = prior)
     if (reset_prior) {
@@ -1016,30 +1057,34 @@ setMethod(
 #' @noRd
 initializeTheta <- function(config, constants, posterior_record) {
   nj <- constants$nj
-  if (!is.null(config@item_selection$initial_theta)) {
-    if (length(config@item_selection$initial_theta) == 1) {
-      theta <- rep(config@item_selection$initial_theta, nj)
+  config_value <- config@item_selection$initial_theta
+  if (!is.null(config_value)) {
+    if (inherits(config_value, "numeric")) {
+      config_value <- matrix(config_value, , 1)
     }
-    if (length(config@item_selection$initial_theta) == nj) {
-      theta <- config@item_selection$initial_theta
+    if (nrow(config_value) == 1) {
+      theta <- matrix(config_value, nj, ncol(config_value), byrow = TRUE)
+      return(theta)
     }
-  } else {
-    theta <- as.vector(posterior_record$posterior %*% matrix(constants$theta_q, ncol = 1))
+    if (nrow(config_value) == nj) {
+      theta <- config_value
+      return(theta)
+    }
   }
-  return(theta)
+  if (is.null(config_value)) {
+    theta <- posterior_record$posterior %*% constants$theta_q
+    return(theta)
+  }
 }
 
 #' @noRd
-getInitialThetaPrior <- function(config_theta, prior_par, nj, j, posterior_constants) {
+getInitialThetaPrior <- function(config_theta, j, posterior_constants) {
 
   o <- list()
 
-  o$prior_par <- parsePriorPar(
-    prior_par, nj, j, config_theta$prior_par
-  )
-
-  o$posterior_sample <- getPriorSample(
-    o$prior_par[1], o$prior_par[2],
+  o$posterior_sample <- generateSampleFromPriorPar(
+    config_theta,
+    j,
     posterior_constants
   )
 
@@ -1052,15 +1097,15 @@ getInitialThetaPrior <- function(config_theta, prior_par, nj, j, posterior_const
 }
 
 #' @noRd
-parseInitialTheta <- function(config_theta, initial_theta, prior_par, nj, j, posterior_constants) {
+parseInitialTheta <- function(config_theta, initial_theta, j, posterior_constants) {
 
   o <- list()
   theta_method <- toupper(config_theta$method)
   if (theta_method %in% c("EAP", "MLE", "MLEF")) {
-    o$theta <- initial_theta[j]
+    o$theta <- initial_theta[j, ]
   }
   if (theta_method %in% c("EB", "FB")) {
-    o <- getInitialThetaPrior(config_theta, prior_par, nj, j, posterior_constants)
+    o <- getInitialThetaPrior(config_theta, j, posterior_constants)
   }
 
   return(o)
@@ -1079,6 +1124,7 @@ parseThetaSegment <- function(current_theta, position, exposure_control, constan
   }
 
   if (constants$exposure_control_method %in% c("NONE", "ELIGIBILITY", "BIGM")) {
+    # find_segment() needs to be updated for multidimensional segments
     segment <- find_segment(current_theta$theta, segment_cut)
     return(segment)
   }
@@ -1111,10 +1157,10 @@ computeEAPFromPosterior <- function(posterior, theta_grid) {
 }
 
 #' @noRd
-applyShrinkageCorrection <- function(EAP, config_theta) {
+applyShrinkageCorrection <- function(EAP, config_theta, j) {
 
   if (toupper(config_theta$prior_dist) == "NORMAL" && config_theta$shrinkage_correction) {
-    prior_sd <- config_theta$prior_sd
+    prior_sd <- config_theta$prior_par[[j]][2]
     o        <- list()
     o$theta  <- EAP$theta * (1 + (EAP$se ** 2))
     o$se     <- EAP$se
