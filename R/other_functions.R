@@ -32,14 +32,14 @@ getConstants <- function(constraints, config, arg_data, true_theta, max_info) {
     if (is.null(constraints)) {
       stop(sprintf("config@content_balancing: 'constraints' must be supplied when $method is '%s'", content_balancing_method))
     }
-    o$use_shadow     <- TRUE
+    o$use_shadowtest <- TRUE
     o$set_based      <- constraints@set_based
     o$test_length    <- constraints@test_length
     o$min_ni         <- constraints@test_length
     o$max_ni         <- constraints@test_length
     o$max_se         <- NULL
   } else {
-    o$use_shadow     <- FALSE
+    o$use_shadowtest <- FALSE
     o$set_based      <- FALSE
     o$test_length    <- NULL
     o$min_ni         <- config@stopping_criterion$min_ni
@@ -97,13 +97,6 @@ getConstants <- function(constraints, config, arg_data, true_theta, max_info) {
     }
   }
 
-  refresh_method <- toupper(config@refresh_policy$method)
-  if (refresh_method %in% c("STIMULUS", "SET", "PASSAGE")) {
-    o$set_based_refresh <- TRUE
-  } else {
-    o$set_based_refresh <- FALSE
-  }
-
   o$exposure_control_method <- toupper(config@exposure_control$method)
   if (o$exposure_control_method %in% c("ELIGIBILITY", "BIGM", "BIGM-BAYESIAN")) {
     o$use_eligibility_control <- TRUE
@@ -144,39 +137,6 @@ sanitizeModel <- function(model) {
 }
 
 #' @noRd
-initializeShadowEngine <- function(constants, refresh_policy) {
-
-  refresh_method   <- toupper(refresh_policy$method)
-  refresh_position <- refresh_policy$position
-  refresh_interval <- refresh_policy$interval
-  test_length      <- constants$test_length
-
-  refresh_shadow    <- rep(FALSE, test_length)
-  refresh_shadow[1] <- TRUE
-  if (refresh_method %in% c("ALWAYS", "THRESHOLD")) {
-    refresh_shadow[1:test_length] <- TRUE
-  }
-  if (refresh_method %in% c("POSITION")) {
-    if (!all(refresh_position %in% 1:test_length)) {
-      stop("config@refresh_policy: $position must be within test length")
-    }
-    refresh_shadow[refresh_position] <- TRUE
-  }
-  if (refresh_method %in% c("INTERVAL", "INTERVAL-THRESHOLD")) {
-    if (!(refresh_interval >= 1 && refresh_interval <= test_length)) {
-      stop("config@refresh_policy: $interval must be at least 1 and not greater than test length")
-    }
-    refresh_shadow[seq(1, test_length, refresh_interval)] <- TRUE
-  }
-  if (constants$set_based_refresh && !constants$set_based) {
-    stop(sprintf("config@refresh_policy: stimulus-based constraint is required for $method '%s'", refresh_method))
-  }
-
-  return(refresh_shadow)
-
-}
-
-#' @noRd
 getInfoFixedTheta <- function(item_selection, constants, item_pool, model) {
 
   nj <- constants$nj
@@ -204,10 +164,14 @@ getInfoFixedTheta <- function(item_selection, constants, item_pool, model) {
 
 #' @noRd
 computeInfoAtCurrentTheta <- function(
-  item_selection, j,
-  current_theta, item_pool, model, posterior_record,
+  item_selection,
+  j,
+  current_theta,
+  item_pool,
+  model_code,
   info_fixed_theta,
-  info_grid
+  info_grid,
+  item_parameter_sample
 ) {
 
   item_method <- toupper(item_selection$method)
@@ -218,33 +182,33 @@ computeInfoAtCurrentTheta <- function(
     return(info)
   }
   if (item_method == "MFI") {
-    info <- calc_info(current_theta$theta, item_pool@ipar, item_pool@NCAT, model)
+    info <- calc_info(current_theta$theta, item_pool@ipar, item_pool@NCAT, model_code)
     return(info)
   }
   if (item_method == "GFI") {
-    info <- calc_info(current_theta$theta, item_pool@ipar, item_pool@NCAT, model)
+    info <- calc_info(current_theta$theta, item_pool@ipar, item_pool@NCAT, model_code)
     return(info)
   }
   if (item_method == "MPWI") {
-    info <- as.vector(matrix(posterior_record$posterior[j, ], nrow = 1) %*% info_grid)
+    info <- as.vector(matrix(current_theta$posterior, nrow = 1) %*% info_grid)
     return(info)
   }
   if (item_method == "EB") {
     info <- calc_info_EB(
       matrix(current_theta$posterior_sample),
-      item_pool@ipar, item_pool@NCAT, model)[, 1]
+      item_pool@ipar, item_pool@NCAT, model_code)[, 1]
     return(info)
   }
   if (item_method == "FB" & info_type == "FISHER") {
     info <- calc_info_FB(
       matrix(current_theta$posterior_sample),
-      posterior_record$ipar_list, item_pool@NCAT, model)[, 1]
+      item_parameter_sample, item_pool@NCAT, model_code)[, 1]
     return(info)
   }
   if (item_method == "FB" & info_type %in% c("MI", "MUTUAL")) {
     info <- calc_MI_FB(
       matrix(current_theta$posterior_sample),
-      posterior_record$ipar_list, item_pool@NCAT, model)[, 1]
+      item_parameter_sample, item_pool@NCAT, model_code)[, 1]
     return(info)
   }
 }
@@ -256,38 +220,6 @@ initializeStimulusRecord <- function() {
   o$finished_stimulus_index      <- NULL
   o$finished_stimulus_item_count <- NULL
   return(o)
-}
-
-#' @noRd
-shouldShadowBeRefreshed <- function(position, refresh_policy, refresh_shadow, theta_change, constants, stimulus_record) {
-
-  refresh_method <- toupper(refresh_policy$method)
-
-  if (position == 1) {
-    return(TRUE)
-  }
-  if (refresh_method == "ALWAYS") {
-    return(TRUE)
-  }
-  if (refresh_method %in% c("POSITION", "INTERVAL") && refresh_shadow[position]) {
-    return(TRUE)
-  }
-  if (refresh_method == "THRESHOLD") {
-    if (abs(theta_change) > refresh_policy$threshold) {
-      return(TRUE)
-    }
-  }
-  if (refresh_method == "INTERVAL-THRESHOLD") {
-    if (abs(theta_change) > refresh_policy$threshold && refresh_shadow[position]) {
-      return(TRUE)
-    }
-  }
-  if (constants$set_based_refresh && constants$set_based && stimulus_record$just_finished_this_set) {
-    return(TRUE)
-  }
-
-  return(FALSE)
-
 }
 
 #' @noRd
@@ -303,71 +235,5 @@ selectItem <- function(info, position, o) {
   }
 
   return(item_selected)
-
-}
-
-#' @noRd
-selectItemFromShadowTest <- function(shadow_test, position, constants, x) {
-
-  o <- list()
-
-  o$n_remaining <- constants$test_length - position
-  o$is_last_item_in_this_set <- FALSE
-  o$new_stimulus_selected    <- FALSE
-
-  o$stimulus_of_previous_item <- 0
-
-  remaining <- which(!shadow_test[["INDEX"]] %in% x@administered_item_index[0:(position - 1)])
-
-  if (position == 1 & !constants$set_based) {
-    idx                 <- remaining[1]
-    o$item_selected     <- shadow_test[["INDEX"]][idx]
-    o$stimulus_selected <- NA
-  }
-  if (position == 1 & constants$set_based) {
-    idx                 <- remaining[1]
-    o$item_selected     <- shadow_test[["INDEX"]][idx]
-    o$stimulus_selected <- shadow_test[["STINDEX"]][idx]
-  }
-  if (position > 1 & !constants$set_based) {
-    idx                 <- remaining[1]
-    o$item_selected     <- shadow_test[["INDEX"]][idx]
-    o$stimulus_selected <- NA
-  }
-  if (position > 1 & constants$set_based) {
-    o$stimulus_of_previous_item <- x@administered_stimulus_index[position - 1]
-    if (!is.na(o$stimulus_of_previous_item)) {
-      remaining_items_within_stimulus <- shadow_test[["STINDEX"]][remaining] == o$stimulus_of_previous_item
-      if (any(remaining_items_within_stimulus, na.rm = TRUE)) {
-        idx <- remaining[which(remaining_items_within_stimulus)][1]
-      } else {
-        idx <- remaining[1]
-      }
-    }
-    if (is.na(o$stimulus_of_previous_item)) {
-      idx <- remaining[1]
-    }
-    o$item_selected     <- shadow_test[["INDEX"]][idx]
-    o$stimulus_selected <- shadow_test[["STINDEX"]][idx]
-  }
-
-
-  if (is.na(
-    o$stimulus_of_previous_item != o$stimulus_selected) |
-    o$stimulus_of_previous_item != o$stimulus_selected) {
-    o$new_stimulus_selected <- TRUE
-  }
-
-  if (sum(shadow_test[["STINDEX"]][remaining] == o$stimulus_selected, na.rm = TRUE) == 1) {
-    o$is_last_item_in_this_set <- TRUE
-  }
-  if (is.na(o$stimulus_selected)) {
-    o$is_last_item_in_this_set <- TRUE
-  }
-  if (o$n_remaining == 0) {
-    o$is_last_item_in_this_set <- TRUE
-  }
-
-  return(o)
 
 }

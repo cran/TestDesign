@@ -1,3 +1,16 @@
+# TestDesign 1.4.0
+
+## Updates
+
+* Added `detectBestSolver()` for detecting the best available solver on the system.
+* `plot(type = "audit")` now plots the initial theta SE when available.
+* Removed support for the `lpsymphony` solver because of installation issues. Users may use the `Rsymphony` solver as an alternative.
+
+## Bug fixes
+
+* Fixed where using `include_items_for_estimation` argument of `Shadow()` was not being reflected in the initial theta estimate.
+* Fixed where using `gurobi` solver would raise an 'unused argument' error.
+
 # TestDesign 1.3.4
 
 ## Bug fixes

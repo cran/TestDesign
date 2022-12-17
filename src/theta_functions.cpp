@@ -1,15 +1,10 @@
 #include "posterior_functions.h"
 #include "theta_functions.h"
 
-//' Calculate an EAP estimate of theta for one examinee
-//'
-//' Calculate an expected a posterior estimate of theta for one examinee.
-//'
-//' @param theta_grid An equi-spaced theta grid.
-//' @param item_parm A numeric matrix of item parameters.
-//' @template calc-params
+//' @rdname theta_EAP
+//' @export
 // [[Rcpp::export]]
-arma::colvec theta_EAP(
+List theta_EAP(
   const arma::mat& theta_grid,
   const arma::mat& item_parm,
   const arma::irowvec& resp,
@@ -18,9 +13,12 @@ arma::colvec theta_EAP(
   const int& prior,
   const arma::rowvec& prior_parm) {
 
+  // this function is not being called in other functions
+  // kept for archive and as a helper function
+
   int nq = theta_grid.n_rows;
 
-  colvec out(2);
+  List o;
   colvec const_term(3, fill::zeros);
 
   for (int q = 0; q < nq; q++) {
@@ -31,27 +29,18 @@ arma::colvec theta_EAP(
     const_term(2) += x(0) * x(0) * pos; // unidimensional
   }
 
-  out(0) = const_term(1) / const_term(0);
-  out(1) = sqrt(const_term(2) / const_term(0) - out(0) * out(0));
+  double theta = const_term(1) / const_term(0);
+  o["theta"] = theta;
+  o["se"] = sqrt(const_term(2) / const_term(0) - theta * theta);
 
-  return out;
+  return o;
 
 }
 
-//' Calculate EAP estimates of theta for a group of examinees
-//'
-//' Calculate expected a posteriori estimates of theta for a group of examinees.
-//'
-//' @param theta_grid An equi-spaced theta grid.
-//' @param item_parm A numeric matrix of item parameters.
-//' @param resp A numeric matrix of item responses.
-//' @param ncat A numeric vector of the number of response categories by item.
-//' @param model A numeric vector of the IRT model by item (1: 1PL, 2: 2PL, 3: 3PL, 4: PC, 5: GPC, 6: GR).
-//' @param prior The type of prior distribution (1: normal, 2: uniform).
-//' @param prior_parm A numeric vector of hyperparameters for the prior distribution, c(mu, sigma) or c(ll, ul).
-//'
+//' @rdname theta_EAP
+//' @export
 // [[Rcpp::export]]
-arma::mat theta_EAP_matrix(
+List theta_EAP_matrix(
   const arma::mat& theta_grid,
   const arma::mat& item_parm,
   const arma::imat& resp,
@@ -60,9 +49,12 @@ arma::mat theta_EAP_matrix(
   const int& prior,
   const arma::rowvec& prior_parm) {
 
+  // this function is not being called in other functions
+  // kept for archive and as a helper function
+
   int nq = theta_grid.n_rows;
   int nj = resp.n_rows;
-  mat out(nj, 2);
+  List o(nj);
 
   for (int j = 0; j < nj; j++) {
     rowvec const_term(3);
@@ -74,11 +66,16 @@ arma::mat theta_EAP_matrix(
       const_term(1) += x(0) * pos;        // unidimensional
       const_term(2) += x(0) * x(0) * pos; // unidimensional
     }
-    out(j, 0) = const_term(1) / const_term(0);
-    out(j, 1) = sqrt(const_term(2) / const_term(0) - out(j, 0) * out(j, 0));
+
+    List x;
+    double theta = const_term(1) / const_term(0);
+    x["theta"] = theta;
+    x["se"] = sqrt(const_term(2) / const_term(0) - theta * theta);
+    o(j) = x;
+
   }
 
-  return out;
+  return o;
 
 }
 
@@ -164,16 +161,8 @@ arma::mat theta_EB_single(
   return out;
 }
 
-//' Calculate a fully Bayesian estimate of theta for an examinee
-//'
-//' Calculate a fully Bayesian estimate of theta for an examinee.
-//'
-//' @param nx The number of MCMC draws.
-//' @param theta_init A value for initial estimate of theta.
-//' @param theta_prop SD of the proposal distribution.
-//' @param items_list A list of item_parm matrices.
-//' @param item_init A matrix of item parameter estimates (one row per item).
-//' @template calc-params
+//' @rdname theta_FB
+//' @export
 // [[Rcpp::export]]
 arma::mat theta_FB(
   const int& nx,
@@ -268,16 +257,8 @@ arma::mat theta_FB(
   return out;
 }
 
-//' Calculate a fully Bayesian estimate of theta for a single item
-//'
-//' Calculate a fully Bayesian estimate of theta for a single item.
-//'
-//' @param nx The number of MCMC draws.
-//' @param theta_init A value for initial estimate of theta.
-//' @param theta_prop SD of the proposal distribution.
-//' @param item_mcmc A matrix of sampled item parameters for a single item.
-//' @param item_init A matrix of item parameter estimates (one row per item).
-//' @template calc-params
+//' @rdname theta_FB
+//' @export
 // [[Rcpp::export]]
 arma::mat theta_FB_single(
   const int& nx,

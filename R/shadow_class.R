@@ -41,7 +41,7 @@ setClass("config_Shadow",
       burn_in                   = 100,
       post_burn_in              = 500,
       thin                      = 1,
-      jump_factor               = 1
+      jump_factor               = 2.4
     ),
     exclude_policy = list(
       method = "HARD",
@@ -109,12 +109,12 @@ setClass("config_Shadow",
   ),
   validity = function(object) {
     err <- NULL
-    if (!toupper(object@MIP$solver) %in% c("LPSYMPHONY", "RSYMPHONY", "LPSOLVE", "GUROBI", "RGLPK")) {
-      msg <- sprintf("config@MIP: unrecognized $solver '%s' (accepts LPSYMPHONY, RSYMPHONY, LPSOLVE, GUROBI, RGLPK)", object@MIP$solver)
+    if (!toupper(object@MIP$solver) %in% c("RSYMPHONY", "LPSOLVE", "GUROBI", "RGLPK")) {
+      msg <- sprintf("config@MIP: unrecognized $solver '%s' (accepts RSYMPHONY, LPSOLVE, GUROBI, RGLPK)", object@MIP$solver)
       err <- c(err, msg)
     }
 
-    for (solver_name in c("gurobi", "Rsymphony", "lpsymphony", "Rglpk")) {
+    for (solver_name in c("gurobi", "Rsymphony", "Rglpk")) {
       if (toupper(object@MIP$solver) == toupper(solver_name)) {
         if (!requireNamespace(solver_name, quietly = TRUE)) {
           msg <- sprintf("config@MIP: could not find the specified solver package '%s'", solver_name)
@@ -250,11 +250,11 @@ setClass("config_Shadow",
 #' }
 #' @param MIP a named list containing solver options.
 #' \itemize{
-#'   \item{\code{solver}} the type of solver. Accepts \code{lpsymphony, Rsymphony, gurobi, lpSolve, Rglpk}. (default = \code{LPSOLVE})
+#'   \item{\code{solver}} the type of solver. Accepts \code{Rsymphony, gurobi, lpSolve, Rglpk}. (default = \code{LPSOLVE})
 #'   \item{\code{verbosity}} verbosity level of the solver. (default = \code{-2})
-#'   \item{\code{time_limit}} time limit in seconds. Used in solvers \code{lpsymphony, Rsymphony, gurobi, Rglpk}. (default = \code{60})
+#'   \item{\code{time_limit}} time limit in seconds. Used in solvers \code{Rsymphony, gurobi, Rglpk}. (default = \code{60})
 #'   \item{\code{gap_limit}} search termination criterion. Gap limit in relative scale passed onto the solver. Used in solver \code{gurobi}. (default = \code{.05})
-#'   \item{\code{gap_limit_abs}} search termination criterion. Gap limit in absolute scale passed onto the solver. Used in solvers \code{lpsymphony, Rsymphony}. (default = \code{0.05})
+#'   \item{\code{gap_limit_abs}} search termination criterion. Gap limit in absolute scale passed onto the solver. Used in solvers \code{Rsymphony}. (default = \code{0.05})
 #'   \item{\code{obj_tol}} search termination criterion. The lower bound to use on the minimax deviation variable. Used when \code{item_selection$method} is \code{GFI}, and ignored otherwise. (default = \code{0.05})
 #'   \item{\code{retry}} number of times to retry running the solver if the solver returns no solution. Some solvers incorrectly return no solution even when a solution exists. This is the number of attempts to verify that the problem is indeed infeasible in such cases. Set to \code{0} to not retry. (default = \code{5})
 #' }
@@ -263,7 +263,7 @@ setClass("config_Shadow",
 #'   \item{\code{burn_in}} the number of chains from the start to discard. (default = \code{100})
 #'   \item{\code{post_burn_in}} the number of chains to use after discarding the first \code{burn_in} chains. (default = \code{500})
 #'   \item{\code{thin}} thinning interval to apply. \code{1} represents no thinning. (default = \code{1})
-#'   \item{\code{jump_factor}} the jump factor to use. \code{1} represents no jumping. (default = \code{1})
+#'   \item{\code{jump_factor}} the jump (scaling) factor for the proposal distribution. \code{1} represents no jumping. (default = \code{2.4})
 #' }
 #' @param exclude_policy a named list containing the exclude policy for use with the \code{exclude} argument in \code{\link{Shadow}}.
 #' \itemize{
@@ -384,6 +384,9 @@ createShadowTestConfig <- function(
       }
     }
   }
+
+  cfg@MIP$solver <- toupper(cfg@MIP$solver)
+
   if (!is.null(theta_grid)) {
     cfg@theta_grid <- theta_grid
   }
@@ -525,7 +528,7 @@ setClass("output_Shadow",
     shadow_test_refreshed       = "logical",
     shadow_test_feasible        = "logical",
     solve_time                  = "numeric",
-    initial_theta_est           = "matrix_or_numeric",
+    initial_theta_est           = "list_or_matrix_or_numeric",
     interim_theta_est           = "matrix_or_numeric",
     interim_se_est              = "matrix_or_numeric",
     theta_segment_index         = "numeric",
@@ -555,7 +558,7 @@ setClass("output_Shadow",
     shadow_test_refreshed       = logical(0),
     shadow_test_feasible        = logical(0),
     solve_time                  = numeric(0),
-    initial_theta_est           = numeric(0),
+    initial_theta_est           = list(0),
     interim_theta_est           = numeric(0),
     interim_se_est              = numeric(0),
     theta_segment_index         = numeric(0),

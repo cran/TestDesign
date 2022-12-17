@@ -75,7 +75,7 @@ setMethod(
     }
 
     item_pool             <- constraints@pool
-    model                 <- sanitizeModel(item_pool@model)
+    model_code            <- sanitizeModel(item_pool@model)
     simulation_data_cache <- makeSimulationDataCache(
       item_pool = item_pool,
       info_type = "FISHER",
@@ -88,15 +88,15 @@ setMethod(
     config@interim_theta  <- parsePriorParameters(config@interim_theta, constants, prior, prior_par)
     config@final_theta    <- parsePriorParameters(config@final_theta  , constants, prior, prior_par)
     posterior_constants   <- getPosteriorConstants(config)
-    posterior_record      <- initializePosterior(config, constants, item_pool, posterior_constants)
-    initial_theta         <- initializeTheta(config, constants, posterior_record)
+    initial_theta         <- parseInitialTheta(config, constants, item_pool, posterior_constants, include_items_for_estimation)
+    item_parameter_sample <- generateItemParameterSample(config, item_pool, posterior_constants)
     exclude_index         <- getIndexOfExcludedEntry(exclude, constraints)
 
     # Only used if config@item_selection$method = "FIXED"
-    info_fixed_theta      <- getInfoFixedTheta(config@item_selection, constants, item_pool, model)
+    info_fixed_theta      <- getInfoFixedTheta(config@item_selection, constants, item_pool, model_code)
 
-    if (constants$use_shadow) {
-      refresh_shadow <- initializeShadowEngine(constants, config@refresh_policy)
+    if (constants$use_shadowtest) {
+      shadowtest_refresh_schedule <- parseShadowTestRefreshSchedule(constants, config@refresh_policy)
     }
 
     # Initialize exposure rate control
@@ -141,7 +141,7 @@ setMethod(
         o@true_theta <- true_theta[j, ]
       }
 
-      o@prior <- posterior_record$posterior[j, ]
+      o@prior <- initial_theta$posterior[j, ]
       o@administered_item_index     <- rep(NA_real_, constants$max_ni)
       o@administered_item_resp      <- rep(NA_real_, constants$max_ni)
       o@administered_stimulus_index <- NaN
@@ -156,13 +156,14 @@ setMethod(
       o@set_based                   <- constants$set_based
       o@item_index_by_stimulus      <- constraints@item_index_by_stimulus
 
-      current_theta <- parseInitialTheta(
+      # Simulee: initialize theta estimate
+      current_theta <- parseInitialThetaOfThisExaminee(
         config@interim_theta,
         initial_theta,
         j,
         posterior_constants
       )
-      o@initial_theta_est <- current_theta$theta
+      o@initial_theta_est <- current_theta
 
       # Simulee: initialize stimulus record
 
@@ -173,12 +174,10 @@ setMethod(
 
       # Simulee: initialize shadow test record
 
-      if (constants$use_shadow) {
+      if (constants$use_shadowtest) {
         o@shadow_test_feasible  <- logical(constants$test_length)
         o@shadow_test_refreshed <- logical(constants$test_length)
       }
-
-      posterior_record$likelihood <- rep(1, constants$nq)
 
       theta_change <- 10000
       done         <- FALSE
@@ -207,26 +206,29 @@ setMethod(
 
         position <- position + 1
         info_current_theta <- computeInfoAtCurrentTheta(
-          config@item_selection, j,
+          config@item_selection,
+          j,
           current_theta,
           item_pool,
-          model,
-          posterior_record,
-          info_fixed_theta,               # Only used if config@item_selection$method = "FIXED"
-          simulation_data_cache@info_grid # Only used if config@item_selection$method = "MPWI"
+          model_code,
+          info_fixed_theta,                # Only used if config@item_selection$method = "FIXED"
+          simulation_data_cache@info_grid, # Only used if config@item_selection$method = "MPWI"
+          item_parameter_sample            # Only used if config@item_selection$method = "FB"
         )
 
         # Item position / simulee: do shadow test assembly
 
-        if (constants$use_shadow) {
+        if (constants$use_shadowtest) {
 
           o@theta_segment_index[position] <- parseThetaSegment(
             current_theta, position, config@exposure_control, constants
           )
 
-          if (shouldShadowBeRefreshed(
-            position, config@refresh_policy, refresh_shadow,
-            theta_change, constants, stimulus_record
+          if (shouldShadowTestBeRefreshed(
+            shadowtest_refresh_schedule,
+            position,
+            theta_change,
+            stimulus_record
           )) {
 
             if (!is.null(seed)) {
@@ -242,7 +244,7 @@ setMethod(
               constants,
               constraints
             )
-            is_optimal <- isShadowtestOptimal(shadowtest)
+            is_optimal <- isShadowTestOptimal(shadowtest)
             if (!is_optimal) {
               printSolverNewline(shadowtest$solver)
               msg <- getSolverStatusMessage(shadowtest$status, shadowtest$solver)
@@ -269,9 +271,11 @@ setMethod(
           o@shadow_test[[position]]$i         <- shadowtest$shadow_test$INDEX
           o@shadow_test[[position]]$s         <- shadowtest$shadow_test$STINDEX
 
-        } else {
+        }
 
-          # If not doing shadow
+        if (!constants$use_shadowtest) {
+
+          # Do traditional CAT
 
           o@administered_item_index[position] <- selectItem(info_current_theta, position, o)
 
@@ -323,36 +327,20 @@ setMethod(
 
         prob_matrix_current_item <- simulation_data_cache@prob_grid[[o@administered_item_index[position]]]
         prob_resp_current_item   <- prob_matrix_current_item[, o@administered_item_resp[position] + 1]
-        posterior_record <- updatePosterior(posterior_record, j, prob_resp_current_item)
+        current_theta <- updateThetaPosterior(current_theta, prob_resp_current_item)
 
         # Item position / simulee: utilize supplied items if necessary
 
         if (!is.null(include_items_for_estimation)) {
 
-          prob_matrix_supplied_items <- calcProb(
-            include_items_for_estimation[[j]]$administered_item_pool,
-            constants$theta_q
-          )
-
-          n_supplied_items <- include_items_for_estimation[[j]]$administered_item_pool@ni
-
-          prob_resp_supplied_items <- sapply(
-            1:n_supplied_items,
-            function(i) {
-              resp <- include_items_for_estimation[[j]]$administered_item_resp[i] + 1
-              prob_matrix_supplied_items[[i]][, resp]
-            }
-          )
-          prob_resp_supplied_items <- apply(prob_resp_supplied_items, 1, prod)
-
-          augmented_posterior_record <- updatePosterior(posterior_record, j, prob_resp_supplied_items)
+          augmented_current_theta    <- current_theta
           augmented_item_pool        <- augmented_item_pool
           augmented_item_index       <- c(augment_item_index, o@administered_item_index[1:position])
           augmented_item_resp        <- c(augment_item_resp,  o@administered_item_resp[1:position])
 
         } else {
 
-          augmented_posterior_record <- posterior_record
+          augmented_current_theta    <- current_theta
           augmented_item_pool        <- item_pool
           augmented_item_index       <- o@administered_item_index[1:position]
           augmented_item_resp        <- o@administered_item_resp[1:position]
@@ -363,12 +351,12 @@ setMethod(
         # Item position / simulee: estimate theta
         o <- estimateInterimTheta(
           o, j, position,
-          current_theta,
-          augmented_posterior_record, posterior_record,
-          augmented_item_pool, item_pool, model,
+          augmented_current_theta,
+          augmented_item_pool, model_code,
           augmented_item_index,
           augmented_item_resp,
           include_items_for_estimation,
+          item_parameter_sample,
           config,
           constants,
           posterior_constants
@@ -383,8 +371,8 @@ setMethod(
 
         if (position == constants$max_ni) {
           done <- TRUE
-          o@likelihood <- posterior_record$likelihood
-          o@posterior  <- posterior_record$posterior[j, ]
+          o@likelihood <- current_theta$likelihood
+          o@posterior  <- current_theta$posterior
         }
 
         if (has_progress_pkg) {
@@ -396,11 +384,12 @@ setMethod(
       # Simulee: test complete, estimate theta
       o <- estimateFinalTheta(
         o, j, position,
-        augmented_item_pool, item_pool, model,
-        augment_item_index,
-        augment_item_resp,
+        augmented_item_pool,
+        model_code,
+        augmented_item_index,
+        augmented_item_resp,
         include_items_for_estimation,
-        posterior_record,
+        item_parameter_sample,
         config,
         constants,
         posterior_constants
@@ -462,7 +451,7 @@ setMethod(
       constants
     )
 
-    if (constants$use_shadow) {
+    if (constants$use_shadowtest) {
       freq_infeasible <- table(unlist(lapply(1:constants$nj, function(j) sum(!o_list[[j]]@shadow_test_feasible))))
     } else {
       freq_infeasible <- NULL
@@ -608,121 +597,4 @@ checkConstraints <- function(constraints, usage_matrix, true_theta = NULL) {
     groupMEAN = groupMEAN[numberIndex, ], groupSD = groupSD[numberIndex, ],
     groupMIN = groupMIN[numberIndex, ], groupMAX = groupMAX[numberIndex, ],
     groupHIT = groupHIT[numberIndex, ]))
-}
-
-
-#' Calculate hyperparameters for log-normal distribution
-#'
-#' Calculate hyperparameters for log-normal distribution.
-#'
-#' @param mean Mean of the distribution.
-#' @param sd Standard deviation of the distribution.
-#'
-#' @examples
-#' lnHyperPars(.5, 1)
-#'
-#' @export
-lnHyperPars <- function(mean, sd) {
-  location <- log(mean^2 / sqrt(sd^2 + mean^2))
-  scale    <- sqrt(log(1 + sd^2 / mean^2))
-  return(c(location, scale))
-}
-
-#' Calculate hyperparameters for logit-normal distribution
-#'
-#' Calculate hyperparameters for logit-normal distribution.
-#'
-#' @param mean Mean of the distribution.
-#' @param sd Standard deviation of the distribution.
-#'
-#' @examples
-#' logitHyperPars(.5, 1)
-#'
-#' @export
-logitHyperPars <- function(mean, sd) {
-
-  n_max <- 10000
-  n     <- 0
-  logit_samples <- numeric(n_max)
-
-  while (n_max - n > 0) {
-    norm_sample <- rnorm(n_max - n, mean, sd)
-    idx <- (norm_sample >= 0) & (norm_sample <= 1)
-    norm_sample <- norm_sample[idx]
-    n_new <- n + length(norm_sample)
-    if (length(norm_sample) > 0) {
-      logit_samples[(n + 1):n_new] <- logitnorm::logit(norm_sample)
-    }
-    n <- n_new
-  }
-
-  return(c(mean(logit_samples), sd(logit_samples)))
-}
-
-#' Sample item parameter estimates from their posterior distributions
-#'
-#' Sample item parameter estimates from their posterior distributions.
-#'
-#' @param pool An \code{\linkS4class{item_pool}} object.
-#' @param n_sample An integer as the number of sampled parameters.
-#'
-#' @examples
-#' ipar <- iparPosteriorSample(itempool_science, 5)
-#'
-#' @export
-iparPosteriorSample <- function(pool, n_sample = 500) {
-
-  requireNamespace("logitnorm")
-  ipar_list <- vector(mode = "list", length = pool@ni)
-
-  for (i in 1:pool@ni) {
-
-    if (pool@model[i] == "item_1PL") {
-      ipar_list[[i]]      <- matrix(NA, nrow = n_sample, ncol = 1)
-      ipar_list[[i]][, 1] <- rnorm(n_sample, pool@ipar[i, 1], pool@se[i, 1])
-
-    } else if (pool@model[i] == "item_2PL") {
-      a_hyp <- lnHyperPars(pool@ipar[i, 1], pool@se[i, 1])
-      ipar_list[[i]]      <- matrix(NA, nrow = n_sample, ncol = 2)
-      ipar_list[[i]][, 1] <- rlnorm(n_sample, a_hyp[1], a_hyp[2])
-      ipar_list[[i]][, 2] <- rnorm(n_sample, pool@ipar[i, 2], pool@se[i, 2])
-
-    } else if (pool@model[i] == "item_3PL") {
-      a_hyp <- lnHyperPars(pool@ipar[i, 1], pool@se[i, 1])
-      c_hyp <- logitHyperPars(pool@ipar[i, 3], pool@se[i, 3])
-      ipar_list[[i]]      <- matrix(NA, nrow = n_sample, ncol = 3)
-      ipar_list[[i]][, 1] <- rlnorm(n_sample, a_hyp[1], a_hyp[2])
-      ipar_list[[i]][, 2] <- rnorm(n_sample, pool@ipar[i, 2], pool@se[i, 2])
-      ipar_list[[i]][, 3] <- rlogitnorm(n_sample, mu = c_hyp[1], sigma = c_hyp[2])
-
-    } else if (pool@model[i] == "item_PC") {
-      ipar_list[[i]] <- matrix(NA, nrow = n_sample, ncol = pool@NCAT[i] - 1)
-      for (k in 1:(pool@NCAT[i] - 1)) {
-        ipar_list[[i]][, k] <- rnorm(n_sample, pool@ipar[i, k], pool@se[i, k])
-      }
-
-    } else if (pool@model[i] == "item_GPC") {
-      a_hyp <- lnHyperPars(pool@ipar[i, 1], pool@se[i, 1])
-      ipar_list[[i]]      <- matrix(NA, nrow = n_sample, ncol = pool@NCAT[i])
-      ipar_list[[i]][, 1] <- rlnorm(n_sample, a_hyp[1], a_hyp[2])
-      for (k in 1:(pool@NCAT[i] - 1)) {
-        ipar_list[[i]][, k + 1] <- rnorm(n_sample, pool@ipar[i, k + 1], pool@se[i, k + 1])
-      }
-
-    } else if (pool@model[i] == "item_GR") {
-      a_hyp <- lnHyperPars(pool@ipar[i, 1], pool@se[i, 1])
-      ipar_list[[i]]      <- matrix(NA, nrow = n_sample, ncol = pool@NCAT[i])
-      ipar_list[[i]][, 1] <- rlnorm(n_sample, a_hyp[1], a_hyp[2])
-      for (k in 1:(pool@NCAT[i] - 1)) {
-        ipar_list[[i]][, k + 1] <- rnorm(n_sample, pool@ipar[i, k + 1], pool@se[i, k + 1])
-      }
-      for (s in 1:n_sample) {
-        if (is.unsorted(ipar_list[[i]][s, 2:pool@NCAT[i]])) {
-          ipar_list[[i]][s, 2:pool@NCAT[i]] <- sort(ipar_list[[i]][s, 2:pool@NCAT[i]])
-        }
-      }
-
-    }
-  }
-  return(ipar_list)
 }

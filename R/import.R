@@ -49,7 +49,7 @@ NULL
   }
 
   if (!skip_solver_test) {
-    solver_names <- c("lpSolve", "Rsymphony", "lpsymphony", "gurobi", "Rglpk")
+    solver_names <- c("lpSolve", "Rsymphony", "gurobi", "Rglpk")
     for (s in solver_names) {
       x <- find.package(s, quiet = TRUE)
       if (length(x) > 0) {
@@ -85,3 +85,4 @@ setClassUnion("list_or_null"        , c("list"        , "NULL"))
 setClassUnion("recordedplot_or_null", c("recordedplot", "NULL"))
 setClassUnion("matrix_or_numeric"   , c("matrix", "numeric"))
 setClassUnion("matrix_or_numeric_or_null", c("matrix", "numeric", "NULL"))
+setClassUnion("list_or_matrix_or_numeric", c("list", "matrix", "numeric"))

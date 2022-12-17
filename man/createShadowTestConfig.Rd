@@ -37,11 +37,11 @@ createShadowTestConfig(
 
 \item{MIP}{a named list containing solver options.
 \itemize{
-  \item{\code{solver}} the type of solver. Accepts \code{lpsymphony, Rsymphony, gurobi, lpSolve, Rglpk}. (default = \code{LPSOLVE})
+  \item{\code{solver}} the type of solver. Accepts \code{Rsymphony, gurobi, lpSolve, Rglpk}. (default = \code{LPSOLVE})
   \item{\code{verbosity}} verbosity level of the solver. (default = \code{-2})
-  \item{\code{time_limit}} time limit in seconds. Used in solvers \code{lpsymphony, Rsymphony, gurobi, Rglpk}. (default = \code{60})
+  \item{\code{time_limit}} time limit in seconds. Used in solvers \code{Rsymphony, gurobi, Rglpk}. (default = \code{60})
   \item{\code{gap_limit}} search termination criterion. Gap limit in relative scale passed onto the solver. Used in solver \code{gurobi}. (default = \code{.05})
-  \item{\code{gap_limit_abs}} search termination criterion. Gap limit in absolute scale passed onto the solver. Used in solvers \code{lpsymphony, Rsymphony}. (default = \code{0.05})
+  \item{\code{gap_limit_abs}} search termination criterion. Gap limit in absolute scale passed onto the solver. Used in solvers \code{Rsymphony}. (default = \code{0.05})
   \item{\code{obj_tol}} search termination criterion. The lower bound to use on the minimax deviation variable. Used when \code{item_selection$method} is \code{GFI}, and ignored otherwise. (default = \code{0.05})
   \item{\code{retry}} number of times to retry running the solver if the solver returns no solution. Some solvers incorrectly return no solution even when a solution exists. This is the number of attempts to verify that the problem is indeed infeasible in such cases. Set to \code{0} to not retry. (default = \code{5})
 }}
@@ -51,7 +51,7 @@ createShadowTestConfig(
   \item{\code{burn_in}} the number of chains from the start to discard. (default = \code{100})
   \item{\code{post_burn_in}} the number of chains to use after discarding the first \code{burn_in} chains. (default = \code{500})
   \item{\code{thin}} thinning interval to apply. \code{1} represents no thinning. (default = \code{1})
-  \item{\code{jump_factor}} the jump factor to use. \code{1} represents no jumping. (default = \code{1})
+  \item{\code{jump_factor}} the jump (scaling) factor for the proposal distribution. \code{1} represents no jumping. (default = \code{2.4})
 }}
 
 \item{exclude_policy}{a named list containing the exclude policy for use with the \code{exclude} argument in \code{\link{Shadow}}.
