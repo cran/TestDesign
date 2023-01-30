@@ -4,10 +4,14 @@
 \alias{e_item}
 \alias{e_1pl}
 \alias{e_2pl}
+\alias{e_m_2pl}
 \alias{e_3pl}
+\alias{e_m_3pl}
 \alias{e_pc}
 \alias{e_gpc}
+\alias{e_m_gpc}
 \alias{e_gr}
+\alias{e_m_gr}
 \alias{array_e_1pl}
 \alias{array_e_2pl}
 \alias{array_e_3pl}
@@ -20,13 +24,21 @@ e_1pl(x, b)
 
 e_2pl(x, a, b)
 
+e_m_2pl(x, a, d)
+
 e_3pl(x, a, b, c)
+
+e_m_3pl(x, a, d, c)
 
 e_pc(x, b)
 
 e_gpc(x, a, b)
 
+e_m_gpc(x, a, d)
+
 e_gr(x, a, b)
+
+e_m_gr(x, a, d)
 
 array_e_1pl(x, b)
 
@@ -41,9 +53,14 @@ array_e_gpc(x, a, b)
 array_e_gr(x, a, b)
 }
 \arguments{
-\item{x}{the theta value. This must be a column vector in matrix form for \code{array_e_*()} functions.}
+\item{x}{the theta value. The number of columns should correspond to the number of dimensions.
+For \code{array_*()} functions, the number of theta values must correspond to the number of rows.}
 
-\item{a, b, c}{the item parameters.}
+\item{b, d}{the difficulty parameter. \code{b} is used for unidimensional items, and \code{d} is used for multidimensional items.}
+
+\item{a}{the \emph{a}-parameter.}
+
+\item{c}{the \emph{c}-parameter.}
 }
 \description{
 \code{e_*()} and \code{array_e_*()} are C++ functions for calculating expected scores.
@@ -51,7 +68,7 @@ array_e_gr(x, a, b)
 \details{
 \code{e_*()} functions accept a single theta value, and \code{array_p_*()} functions accept multiple theta values.
 
-Currently supports unidimensional models.
+Supports unidimensional and multidimensional models.
 
 \itemize{
   \item{\code{e_1pl()}, \code{array_e_1pl()}}: 1PL models
@@ -60,6 +77,10 @@ Currently supports unidimensional models.
   \item{\code{e_pc()}, \code{array_e_pc()}}: PC (partial credit) models
   \item{\code{e_gpc()}, \code{array_e_gpc()}}: GPC (generalized partial credit) models
   \item{\code{e_gr()}, \code{array_e_gr()}}: GR (graded response) models
+  \item{\code{e_m_2pl()}, \code{array_e_m_2pl()}}: multidimensional 2PL models
+  \item{\code{e_m_3pl()}, \code{array_e_m_3pl()}}: multidimensional 3PL models
+  \item{\code{e_m_gpc()}, \code{array_e_m_gpc()}}: multidimensional GPC models
+  \item{\code{e_m_gr()}, \code{array_e_m_gr()}}: multidimensional GR models
 }
 }
 \examples{
@@ -72,7 +93,7 @@ e_pc(x, c(0, 1))
 e_gpc(x, 2, c(0, 1))
 e_gr(x, 2, c(0, 2))
 
-x <- matrix(seq(-3, 3, 1)) # column vector in matrix form
+x <- matrix(seq(-3, 3, 1)) # three theta values, unidimensional
 
 array_e_1pl(x, 1)
 array_e_2pl(x, 1, 2)

@@ -4,46 +4,75 @@
 \alias{p_item}
 \alias{p_1pl}
 \alias{p_2pl}
+\alias{p_m_2pl}
 \alias{p_3pl}
+\alias{p_m_3pl}
 \alias{p_pc}
 \alias{p_gpc}
+\alias{p_m_gpc}
 \alias{p_gr}
+\alias{p_m_gr}
 \alias{array_p_1pl}
 \alias{array_p_2pl}
+\alias{array_p_m_2pl}
 \alias{array_p_3pl}
+\alias{array_p_m_3pl}
 \alias{array_p_pc}
 \alias{array_p_gpc}
+\alias{array_p_m_gpc}
 \alias{array_p_gr}
+\alias{array_p_m_gr}
 \title{(C++) Calculate item response probability}
 \usage{
 p_1pl(x, b)
 
 p_2pl(x, a, b)
 
+p_m_2pl(x, a, d)
+
 p_3pl(x, a, b, c)
+
+p_m_3pl(x, a, d, c)
 
 p_pc(x, b)
 
 p_gpc(x, a, b)
 
+p_m_gpc(x, a, d)
+
 p_gr(x, a, b)
+
+p_m_gr(x, a, d)
 
 array_p_1pl(x, b)
 
 array_p_2pl(x, a, b)
 
+array_p_m_2pl(x, a, d)
+
 array_p_3pl(x, a, b, c)
+
+array_p_m_3pl(x, a, d, c)
 
 array_p_pc(x, b)
 
 array_p_gpc(x, a, b)
 
+array_p_m_gpc(x, a, d)
+
 array_p_gr(x, a, b)
+
+array_p_m_gr(x, a, d)
 }
 \arguments{
-\item{x}{the theta value. This must be a column vector in matrix form for \code{array_p_*()} functions.}
+\item{x}{the theta value. The number of columns should correspond to the number of dimensions.
+For \code{array_*()} functions, the number of theta values must correspond to the number of rows.}
 
-\item{a, b, c}{the item parameters.}
+\item{b, d}{the difficulty parameter. \code{b} is used for unidimensional items, and \code{d} is used for multidimensional items.}
+
+\item{a}{the \emph{a}-parameter.}
+
+\item{c}{the \emph{c}-parameter.}
 }
 \description{
 \code{p_*()} and \code{array_p_*()} are C++ functions for calculating item response probability.
@@ -51,7 +80,7 @@ array_p_gr(x, a, b)
 \details{
 \code{p_*()} functions accept a single theta value, and \code{array_p_*()} functions accept multiple theta values.
 
-Currently supports unidimensional models.
+Supports unidimensional and multidimensional models.
 
 \itemize{
   \item{\code{p_1pl()}, \code{array_p_1pl()}}: 1PL models
@@ -60,6 +89,10 @@ Currently supports unidimensional models.
   \item{\code{p_pc()}, \code{array_p_pc()}}: PC (partial credit) models
   \item{\code{p_gpc()}, \code{array_p_gpc()}}: GPC (generalized partial credit) models
   \item{\code{p_gr()}, \code{array_p_gr()}}: GR (graded response) models
+  \item{\code{p_m_2pl()}, \code{array_p_m_2pl()}}: multidimensional 2PL models
+  \item{\code{p_m_3pl()}, \code{array_p_m_3pl()}}: multidimensional 3PL models
+  \item{\code{p_m_gpc()}, \code{array_p_m_gpc()}}: multidimensional GPC models
+  \item{\code{p_m_gr()}, \code{array_p_m_gr()}}: multidimensional GR models
 }
 }
 \examples{
@@ -72,7 +105,7 @@ p_pc(x, c(0, 1))
 p_gpc(x, 2, c(0, 1))
 p_gr(x, 2, c(0, 2))
 
-x <- matrix(seq(0.1, 0.5, 0.1)) # column vector in matrix form
+x <- matrix(seq(0.1, 0.5, 0.1)) # three theta values, unidimensional
 
 array_p_1pl(x, 1)
 array_p_2pl(x, 1, 2)
