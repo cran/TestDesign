@@ -2,56 +2,59 @@
 NULL
 
 #' @noRd
-parsePriorParameters <- function(o, constants, prior_density_override, prior_par_override) {
+parsePriorParameters <- function(config_theta, constants, prior_density_override, prior_par_override) {
 
   # override config with prior arguments supplied to Shadow()
   if (!is.null(prior_density_override) & !is.null(prior_par_override)) {
     stop("unexpected 'prior' and 'prior_par': only one must be supplied to Shadow()")
   }
   if (!is.null(prior_density_override)) {
-    o$prior_dist <- "RAW"
-    o$prior_par  <- prior_density_override
+    config_theta$prior_dist <- "RAW"
+    config_theta$prior_par  <- prior_density_override
   }
   if (!is.null(prior_par_override)) {
-    o$prior_dist <- "NORMAL"
-    o$prior_par  <- prior_par_override
+    config_theta$prior_dist <- "NORMAL"
+    config_theta$prior_par  <- prior_par_override
   }
 
-  o$prior_dist <- toupper(o$prior_dist)
+  config_theta$prior_dist <- toupper(config_theta$prior_dist)
 
   # if prior_par is a vector, expand to an examinee-wise list
-  if (is.vector(o$prior_par)) {
-    o$prior_par <- lapply(1:constants$nj, function(x) o$prior_par)
+  if (
+    is.vector(config_theta$prior_par) &
+    !is.list(config_theta$prior_par) # because a list is also a vector
+  ) {
+    config_theta$prior_par <- lapply(1:constants$nj, function(x) config_theta$prior_par)
   }
 
   # if prior_par is a matrix, expand to an examinee-wise list
-  if (is.matrix(o$prior_par)) {
-    o$prior_par <- apply(o$prior_par, 1, function(x) {x}, simplify = FALSE)
+  if (is.matrix(config_theta$prior_par)) {
+    config_theta$prior_par <- apply(config_theta$prior_par, 1, function(x) {x}, simplify = FALSE)
   }
 
   # if prior_par is a list, validate
-  if (is.list(o$prior_par)) {
-    if (length(o$prior_par) != constants$nj) {
+  if (is.list(config_theta$prior_par)) {
+    if (length(config_theta$prior_par) != constants$nj) {
       stop("unexpected 'prior_par': could not be expanded to a length-nj list (must be a length-2 vector, an nj * 2 matrix, or a length-nj list)")
     }
-    n_prior_par <- unlist(lapply(o$prior_par, length))
-    if (o$prior_dist == "NORMAL" & any(n_prior_par != 2)) {
+    n_prior_par <- unlist(lapply(config_theta$prior_par, length))
+    if (config_theta$prior_dist == "NORMAL" & any(n_prior_par != 2)) {
       stop("unexpected 'prior_par': for 'NORMAL' distribution, each list element must be a length-2 vector")
     }
-    if (o$prior_dist == "UNIFORM" & any(n_prior_par != 2)) {
+    if (config_theta$prior_dist == "UNIFORM" & any(n_prior_par != 2)) {
       stop("unexpected 'prior_par': for 'UNIFORM' distribution, each list element must be a length-2 vector")
     }
-    if (o$prior_dist == "RAW" & any(n_prior_par != constants$nq)) {
+    if (config_theta$prior_dist == "RAW" & any(n_prior_par != constants$nq)) {
       stop("unexpected 'prior_par': for 'RAW' distribution, each list element must be a length-nq vector")
     }
   }
 
-  return(o)
+  return(config_theta)
 
 }
 
 #' @noRd
-getPosteriorConstants <- function(config) {
+getBayesianConstants <- function(config, constants) {
 
   o <- list()
 
@@ -64,6 +67,12 @@ getPosteriorConstants <- function(config) {
     o$thin        <- config@MCMC$thin
     o$jump_factor <- config@MCMC$jump_factor
   }
+
+  # generate prior densities from config
+  o$final_theta_prior_densities <- generateDensityFromPriorPar(
+    config@final_theta,
+    constants$theta_q
+  )
 
   return(o)
 
@@ -92,36 +101,41 @@ iparPosteriorSample <- function(pool, n_sample = 500) {
     if (pool@model[i] == "item_1PL") {
       ipar_list[[i]]      <- matrix(NA, nrow = n_sample, ncol = 1)
       ipar_list[[i]][, 1] <- rnorm(n_sample, pool@ipar[i, 1], pool@se[i, 1])
-
-    } else if (pool@model[i] == "item_2PL") {
+      next
+    }
+    if (pool@model[i] == "item_2PL") {
       a_hyp <- lnHyperPars(pool@ipar[i, 1], pool@se[i, 1])
       ipar_list[[i]]      <- matrix(NA, nrow = n_sample, ncol = 2)
       ipar_list[[i]][, 1] <- rlnorm(n_sample, a_hyp[1], a_hyp[2])
       ipar_list[[i]][, 2] <- rnorm(n_sample, pool@ipar[i, 2], pool@se[i, 2])
-
-    } else if (pool@model[i] == "item_3PL") {
+      next
+    }
+    if (pool@model[i] == "item_3PL") {
       a_hyp <- lnHyperPars(pool@ipar[i, 1], pool@se[i, 1])
       c_hyp <- logitHyperPars(pool@ipar[i, 3], pool@se[i, 3])
       ipar_list[[i]]      <- matrix(NA, nrow = n_sample, ncol = 3)
       ipar_list[[i]][, 1] <- rlnorm(n_sample, a_hyp[1], a_hyp[2])
       ipar_list[[i]][, 2] <- rnorm(n_sample, pool@ipar[i, 2], pool@se[i, 2])
       ipar_list[[i]][, 3] <- rlogitnorm(n_sample, mu = c_hyp[1], sigma = c_hyp[2])
-
-    } else if (pool@model[i] == "item_PC") {
+      next
+    }
+    if (pool@model[i] == "item_PC") {
       ipar_list[[i]] <- matrix(NA, nrow = n_sample, ncol = pool@NCAT[i] - 1)
       for (k in 1:(pool@NCAT[i] - 1)) {
         ipar_list[[i]][, k] <- rnorm(n_sample, pool@ipar[i, k], pool@se[i, k])
       }
-
-    } else if (pool@model[i] == "item_GPC") {
+      next
+    }
+    if (pool@model[i] == "item_GPC") {
       a_hyp <- lnHyperPars(pool@ipar[i, 1], pool@se[i, 1])
       ipar_list[[i]]      <- matrix(NA, nrow = n_sample, ncol = pool@NCAT[i])
       ipar_list[[i]][, 1] <- rlnorm(n_sample, a_hyp[1], a_hyp[2])
       for (k in 1:(pool@NCAT[i] - 1)) {
         ipar_list[[i]][, k + 1] <- rnorm(n_sample, pool@ipar[i, k + 1], pool@se[i, k + 1])
       }
-
-    } else if (pool@model[i] == "item_GR") {
+      next
+    }
+    if (pool@model[i] == "item_GR") {
       a_hyp <- lnHyperPars(pool@ipar[i, 1], pool@se[i, 1])
       ipar_list[[i]]      <- matrix(NA, nrow = n_sample, ncol = pool@NCAT[i])
       ipar_list[[i]][, 1] <- rlnorm(n_sample, a_hyp[1], a_hyp[2])
@@ -133,7 +147,7 @@ iparPosteriorSample <- function(pool, n_sample = 500) {
           ipar_list[[i]][s, 2:pool@NCAT[i]] <- sort(ipar_list[[i]][s, 2:pool@NCAT[i]])
         }
       }
-
+      next
     }
   }
   return(ipar_list)
@@ -200,14 +214,14 @@ logitHyperPars <- function(mean, sd) {
 }
 
 #' @noRd
-generateItemParameterSample <- function(config, item_pool, posterior_constants) {
+generateItemParameterSample <- function(config, item_pool, bayesian_constants) {
 
   o <- NULL
 
   interim_method <- toupper(config@interim_theta$method)
   final_method   <- toupper(config@final_theta$method)
   if (any(c(interim_method, final_method) %in% c("FB"))) {
-    o <- iparPosteriorSample(item_pool, posterior_constants$n_sample)
+    o <- iparPosteriorSample(item_pool, bayesian_constants$n_sample)
   }
 
   return(o)
@@ -215,9 +229,10 @@ generateItemParameterSample <- function(config, item_pool, posterior_constants) 
 }
 
 #' @noRd
-generateDensityFromPriorPar <- function(config_theta, theta_q, nj) {
+generateDensityFromPriorPar <- function(config_theta, theta_q) {
 
   nq <- nrow(theta_q)
+  nj <- length(config_theta$prior_par) # this is an examinee-wise list
   prior_density <- NULL
 
   if (config_theta$prior_dist == "NORMAL") {
@@ -253,11 +268,11 @@ generateDensityFromPriorPar <- function(config_theta, theta_q, nj) {
 }
 
 #' @noRd
-generateSampleFromPriorPar <- function(config_theta, j, posterior_constants) {
+generateSampleFromPriorPar <- function(config_theta, j, bayesian_constants) {
 
   if (config_theta$prior_dist == "NORMAL") {
     prior_sample <- rnorm(
-      posterior_constants$n_sample,
+      bayesian_constants$n_sample,
       mean = config_theta$prior_par[[j]][1],
       sd   = config_theta$prior_par[[j]][2]
     )
@@ -265,7 +280,7 @@ generateSampleFromPriorPar <- function(config_theta, j, posterior_constants) {
   }
   if (config_theta$prior_dist == "UNIFORM") {
     prior_sample <- runif(
-      posterior_constants$n_sample,
+      bayesian_constants$n_sample,
       min = config_theta$prior_par[[j]][1],
       max = config_theta$prior_par[[j]][2]
     )
@@ -275,12 +290,12 @@ generateSampleFromPriorPar <- function(config_theta, j, posterior_constants) {
 }
 
 #' @noRd
-applyThin <- function(posterior_sample, posterior_constants) {
+applyThin <- function(posterior_sample, bayesian_constants) {
 
   posterior_sample <- posterior_sample[seq(
-    from = posterior_constants$burn_in + 1,
-    to   = posterior_constants$n_sample,
-    by   = posterior_constants$thin
+    from = bayesian_constants$burn_in + 1,
+    to   = bayesian_constants$n_sample,
+    by   = bayesian_constants$thin
   )]
 
   return(posterior_sample)

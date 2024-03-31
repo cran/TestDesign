@@ -76,7 +76,7 @@ setClass("config_Static",
 
 #' Create a config_Static object
 #'
-#' \code{\link{createStaticTestConfig}} is a config function to create a \code{\linkS4class{config_Static}} object for Static (fixed-form) test assembly.
+#' \code{\link{createStaticTestConfig}} is a config function for creating a \code{\linkS4class{config_Static}} object for Static (fixed-form) test assembly.
 #' Default values are used for any unspecified parameters/slots.
 #'
 #' @param item_selection a named list containing item selection criteria.
@@ -181,7 +181,7 @@ createStaticTestConfig <- function(item_selection = NULL, MIP = NULL) {
 
 #' Class 'output_Static': fixed-form assembly solution
 #'
-#' \code{\linkS4class{output_Static}} is an S4 class to represent a fixed-form assembly solution.
+#' \code{\linkS4class{output_Static}} is an S4 class for representing a fixed-form assembly solution.
 #'
 #' @slot MIP a list containing the result from MIP solver.
 #' @slot selected a \code{\link{data.frame}} containing the selected items and their attributes.

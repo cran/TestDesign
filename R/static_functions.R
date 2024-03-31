@@ -3,7 +3,7 @@ NULL
 
 #' Run fixed-form test assembly
 #'
-#' \code{\link{Static}} is a test assembly function to perform fixed-form test assembly based on the generalized shadow-test framework.
+#' \code{\link{Static}} is a test assembly function for performing fixed-form test assembly based on the generalized shadow-test framework.
 #'
 #' @template config_Static-param
 #' @template constraints-param
@@ -40,7 +40,7 @@ setMethod(
   definition = function(config, constraints, force_solver = FALSE) {
 
     if (!validObject(config)) {
-      stop("'config' object is not valid.")
+      stop("the 'config' argument is not a valid 'config_Static' object.")
     }
 
     if (!force_solver) {
@@ -87,17 +87,17 @@ setMethod(
       )
     }
 
-    out             <- new("output_Static")
-    out@MIP         <- list(results$MIP)
-    out@selected    <- results$shadow_test
-    out@obj_value   <- results$obj_value
-    out@solve_time  <- results$solve_time
-    out@achieved    <- tmp
-    out@pool        <- item_pool
-    out@config      <- config
-    out@constraints <- constraints
+    o             <- new("output_Static")
+    o@MIP         <- list(results$MIP)
+    o@selected    <- results$shadow_test
+    o@obj_value   <- results$obj_value
+    o@solve_time  <- results$solve_time
+    o@achieved    <- tmp
+    o@pool        <- item_pool
+    o@config      <- config
+    o@constraints <- constraints
 
-    return(out)
+    return(o)
 
   }
 )

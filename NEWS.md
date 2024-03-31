@@ -1,3 +1,22 @@
+# TestDesign 1.6.1
+
+## New features
+
+* `Split()` gains a new argument `n_maximum_partitions_per_item` for allowing items to be assigned to multiple partitions.
+
+## Updates
+
+* Updated `vignette('constraints')`.
+* Removed deprecated arguments.
+* Updated documentation and validation error/warning messages. Also improved input validation in some functions.
+* Package compilation now imports BLAS_LIBS and FLIBS as PKG_LIBS across platforms (submitted by Jeroen Ooms)
+
+## Bug fixes
+
+* Fixed where `c()` and `combineConstraints()` were incorrectly combining constraints.
+* Fixed where when examinee-wise priors were supplied for final theta estimation with EAP, the first examinee's prior was being used for all examinees.
+* Fixed where `Split()` was erroneously returning set indices even when the input item pool was entirely comprised of discrete items.
+
 # TestDesign 1.5.1
 
 ## Updates

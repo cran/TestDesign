@@ -2,7 +2,7 @@
 NULL
 
 #' @noRd
-getXdataOfAdministered <- function(constants, position, output, stimulus_record, constraints) {
+getXdataOfAdministered <- function(constants, position, x, groupings_record, constraints) {
 
   o <- list()
 
@@ -19,16 +19,16 @@ getXdataOfAdministered <- function(constants, position, output, stimulus_record,
   o$xdir <- rep("==", position - 1)
   o$xrhs <- rep(1   , position - 1)
   for (p in 1:(position - 1)) {
-    o$xmat[p, output@administered_item_index[p]] <- 1
+    o$xmat[p, x@administered_item_index[p]] <- 1
   }
 
-  if (!constants$set_based) {
+  if (!constants$group_by_stimulus) {
     return(o)
   }
 
   # include sets being administered
 
-  unique_administered_stimulus_index <- na.omit(unique(output@administered_stimulus_index))
+  unique_administered_stimulus_index <- na.omit(unique(x@administered_stimulus_index))
   unique_ns <- length(unique_administered_stimulus_index)
 
   if (unique_ns > 0) {
@@ -49,17 +49,17 @@ getXdataOfAdministered <- function(constants, position, output, stimulus_record,
 
   # constrain set sizes for fully administered sets
 
-  administered_stimulus_index <- stimulus_record$administered_stimulus_index
-  administered_stimulus_size  <- stimulus_record$administered_stimulus_size
-  ns_completed <- length(administered_stimulus_index)
+  completed_stimulus_index <- groupings_record$completed_stimulus_index
+  completed_stimulus_size  <- groupings_record$completed_stimulus_size
+  ns_completed <- length(completed_stimulus_index)
 
   if (unique_ns > 0 && ns_completed > 0) {
 
     o$smat <- matrix(0, ns_completed, nv)
     o$sdir <- rep("==", ns_completed)
-    o$srhs <- administered_stimulus_size
+    o$srhs <- completed_stimulus_size
     for (s in 1:ns_completed) {
-      i <- constraints@item_index_by_stimulus[[administered_stimulus_index[s]]]
+      i <- constraints@item_index_by_stimulus[[completed_stimulus_index[s]]]
       o$smat[s, i] <- 1
     }
 
@@ -115,7 +115,7 @@ getXdataOfExcludedEntry <- function(constants, exclude_index) {
   o$xrhs <- rep(0   , 1)
   o$xmat[1, exclude_index$i] <- 1
 
-  if (!constants$set_based) {
+  if (!constants$group_by_stimulus) {
     return(o)
   }
 
@@ -144,7 +144,7 @@ getInfoOfExcludedEntry <- function(info, exclude_index, constants) {
   info[exclude_index$i, 1] <-
   info[exclude_index$i, 1] - constants$exclude_M
 
-  if (!constants$set_based) {
+  if (!constants$group_by_stimulus) {
     return(info)
   }
 

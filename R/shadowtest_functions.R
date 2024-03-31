@@ -49,7 +49,7 @@ parseShadowTestRefreshSchedule <- function(constants, refresh_policy) {
     o$schedule[seq(1, test_length, refresh_interval)] <- TRUE
   }
   if (refresh_method %in% c("STIMULUS", "SET", "PASSAGE")) {
-    if (!constants$set_based) {
+    if (!constants$group_by_stimulus) {
       stop(sprintf("config@refresh_policy: stimulus-based constraint is required for $method '%s'", refresh_method))
     }
     o$dynamic      <- TRUE
@@ -64,9 +64,9 @@ parseShadowTestRefreshSchedule <- function(constants, refresh_policy) {
 #' @noRd
 assembleShadowTest <- function(
   j, position, o,
-  eligible_flag,
+  eligibility_flag,
   exclude_index,
-  stimulus_record,
+  groupings_record,
   info,
   config,
   constants,
@@ -75,7 +75,7 @@ assembleShadowTest <- function(
 
   administered_stimulus_index <- na.omit(unique(o@administered_stimulus_index))
 
-  xdata         <- getXdataOfAdministered(constants, position, o, stimulus_record, constraints)
+  xdata         <- getXdataOfAdministered(constants, position, o, groupings_record, constraints)
   if (constants$exclude_method == "HARD") {
     xdata_exclude <- getXdataOfExcludedEntry(constants, exclude_index[[j]])
     xdata         <- combineXdata(xdata, xdata_exclude)
@@ -84,18 +84,18 @@ assembleShadowTest <- function(
     info <- getInfoOfExcludedEntry(info, exclude_index[[j]], constants)
   }
 
-  if (constants$use_eligibility_control) {
+  if (constants$use_exposure_control) {
 
     # Get eligible items in the current theta segment
     current_segment <- o@theta_segment_index[position]
-    eligible_flag_in_current_theta_segment <- getEligibleFlagInSegment(eligible_flag, current_segment, constants)
-    eligible_flag_in_current_theta_segment <- flagAdministeredAsEligible(eligible_flag_in_current_theta_segment, o, position, constants)
+    eligibility_flag_in_current_theta_segment <- getEligibilityFlagInSegment(eligibility_flag, current_segment, constants)
+    eligibility_flag_in_current_theta_segment <- flagAdministeredAsEligible(eligibility_flag_in_current_theta_segment, o, position, constants)
 
   }
 
-  if (constants$use_eligibility_control && constants$exposure_control_method %in% c("ELIGIBILITY")) {
+  if (constants$use_exposure_control && constants$exposure_control_method %in% c("ELIGIBILITY")) {
 
-    xdata_elg  <- applyEligibilityConstraintsToXdata(xdata, eligible_flag_in_current_theta_segment, constants, constraints)
+    xdata_elg  <- applyEligibilityConstraintsToXdata(xdata, eligibility_flag_in_current_theta_segment, constants, constraints)
     shadowtest <- runAssembly(config, constraints, xdata = xdata_elg, objective = info)
     is_optimal <- isShadowTestOptimal(shadowtest)
 
@@ -111,11 +111,11 @@ assembleShadowTest <- function(
 
   }
 
-  if (constants$use_eligibility_control && constants$exposure_control_method %in% c("BIGM", "BIGM-BAYESIAN")) {
+  if (constants$use_exposure_control && constants$exposure_control_method %in% c("BIGM", "BIGM-BAYESIAN")) {
 
     # Do Big-M based exposure control: penalize item info
     info <- applyEligibilityConstraintsToInfo(
-      info, eligible_flag_in_current_theta_segment, config, constants
+      info, eligibility_flag_in_current_theta_segment, config, constants
     )
 
     shadowtest <- runAssembly(config, constraints, xdata = xdata, objective = info)
@@ -124,7 +124,7 @@ assembleShadowTest <- function(
 
   }
 
-  if (!constants$use_eligibility_control) {
+  if (!constants$use_exposure_control) {
 
     shadowtest <- runAssembly(config, constraints, xdata = xdata, objective = info)
     shadowtest$feasible <- TRUE
@@ -140,30 +140,30 @@ isShadowTestOptimal <- function(shadowtest) {
 }
 
 #' @noRd
-selectItemFromShadowTest <- function(shadow_test, position, constants, x, stimulus_record) {
+selectItemFromShadowTest <- function(shadow_test, position, constants, x, previous_selection) {
 
   o <- list()
 
   # filter out administered items ----------------------------------------------
   shadow_test <- subset(shadow_test, !(shadow_test$INDEX %in% x@administered_item_index))
 
-  if (constants$set_based) {
+  if (constants$group_by_stimulus) {
 
     # if set-based and we just completed a set, select a new set ---------------
     # this is also triggered at the start of test
-    if (stimulus_record$just_finished_a_set) {
+    if (previous_selection$is_last_item_in_this_set) {
       current_stimulus_index <- shadow_test$STINDEX[1]
     }
 
     # if set-based and we are in mid-set, read from previous item --------------
-    if (!stimulus_record$just_finished_a_set) {
+    if (!previous_selection$is_last_item_in_this_set) {
       current_stimulus_index <- x@administered_stimulus_index[position - 1]
     }
 
   }
 
   # filter to current set ------------------------------------------------------
-  if (constants$set_based) {
+  if (constants$group_by_stimulus) {
 
     if (!is.na(current_stimulus_index)) {
 
@@ -200,11 +200,11 @@ selectItemFromShadowTest <- function(shadow_test, position, constants, x, stimul
   # select item
   o$item_selected <- shadow_test$INDEX[1]
 
-  if (constants$set_based) {
+  if (constants$group_by_stimulus) {
     o$stimulus_selected <- shadow_test$STINDEX[1]
   }
 
-  if (constants$set_based) {
+  if (constants$group_by_stimulus) {
 
     # this is used to trigger a shadowtest refresh
     o$is_last_item_in_this_set <- nrow(shadow_test) == 1
@@ -223,7 +223,7 @@ selectItemFromShadowTest <- function(shadow_test, position, constants, x, stimul
 }
 
 #' @noRd
-shouldShadowTestBeRefreshed <- function(x, position, theta_change, stimulus_record) {
+shouldShadowTestBeRefreshed <- function(x, position, theta_change, previous_selection) {
 
   scheduled_value <- x$schedule[position]
 
@@ -243,7 +243,7 @@ shouldShadowTestBeRefreshed <- function(x, position, theta_change, stimulus_reco
       }
     }
     if (x$use_setbased) {
-      if (stimulus_record$just_finished_a_set) {
+      if (previous_selection$is_last_item_in_this_set) {
         return(TRUE)
       } else {
         return(FALSE)
@@ -256,81 +256,76 @@ shouldShadowTestBeRefreshed <- function(x, position, theta_change, stimulus_reco
 }
 
 #' @noRd
-updateCompletedStimulusRecord <- function(
-  stimulus_record,
+updateCompletedGroupingsRecordForStimulus <- function(
+  groupings_record,
   selection,
-  administered_stimulus_index,
+  o,
   position
 ) {
 
   if (selection$is_last_item_in_this_set) {
 
-    # trigger shadow test refresh for next item
-    stimulus_record$just_finished_a_set <- TRUE
-
     # if this item is discrete
     if (is.na(selection$stimulus_selected)) {
-      return(stimulus_record)
+      return(groupings_record)
     }
 
     # record the number of items from this set
     # so that the next shadow test can take account for it
 
-    stimulus_record$administered_stimulus_index <- c(
-      stimulus_record$administered_stimulus_index,
+    groupings_record$completed_stimulus_index <- c(
+      groupings_record$completed_stimulus_index,
       selection$stimulus_selected
     )
-    stimulus_record$administered_stimulus_size <- c(
-      stimulus_record$administered_stimulus_size,
-      sum(administered_stimulus_index == selection$stimulus_selected, na.rm = TRUE)
+    groupings_record$completed_stimulus_size <- c(
+      groupings_record$completed_stimulus_size,
+      sum(o@administered_stimulus_index == selection$stimulus_selected, na.rm = TRUE)
     )
 
-    return(stimulus_record)
+    return(groupings_record)
 
   }
 
   if (!selection$is_last_item_in_this_set) {
 
     # a new set may have been selected when is_last_item_in_this_set is FALSE
-    # detect this and populate stimulus_record accordingly
-
-    stimulus_record$just_finished_a_set <- FALSE
+    # detect this and populate groupings_record accordingly
 
     if (position == 1) {
-      return(stimulus_record)
+      return(groupings_record)
     }
 
     # if the previous item was a discrete item then there is nothing to populate
-    if (is.na(administered_stimulus_index[position - 1])) {
-      return(stimulus_record)
+    if (is.na(o@administered_stimulus_index[position - 1])) {
+      return(groupings_record)
     }
 
     if (
-      administered_stimulus_index[position] ==
-      administered_stimulus_index[position - 1]
+      o@administered_stimulus_index[position] ==
+      o@administered_stimulus_index[position - 1]
     ) {
-      return(stimulus_record)
+      return(groupings_record)
     }
 
     if (
-      administered_stimulus_index[position - 1] %in%
-      stimulus_record$administered_stimulus_index
+      o@administered_stimulus_index[position - 1] %in%
+      groupings_record$completed_stimulus_index
     ) {
-      return(stimulus_record)
+      return(groupings_record)
     }
 
-    stimulus_record$administered_stimulus_index <- c(
-      stimulus_record$administered_stimulus_index,
-      administered_stimulus_index[position - 1]
+    groupings_record$completed_stimulus_index <- c(
+      groupings_record$completed_stimulus_index,
+      o@administered_stimulus_index[position - 1]
     )
-    stimulus_record$administered_stimulus_size <- c(
-      stimulus_record$administered_stimulus_size,
-      sum(administered_stimulus_index == administered_stimulus_index[position - 1], na.rm = TRUE)
+    groupings_record$completed_stimulus_size <- c(
+      groupings_record$completed_stimulus_size,
+      sum(o@administered_stimulus_index == o@administered_stimulus_index[position - 1], na.rm = TRUE)
     )
 
   }
 
-  return(stimulus_record)
+  return(groupings_record)
 
 }
 

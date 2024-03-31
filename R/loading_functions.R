@@ -10,13 +10,11 @@ NULL
 
 #' Load item pool
 #'
-#' \code{\link{loadItemPool}} is a data loading function to create an \code{\linkS4class{item_pool}} object.
+#' \code{\link{loadItemPool}} is a data loading function for creating an \code{\linkS4class{item_pool}} object.
 #' \code{\link{loadItemPool}} can read item parameters and standard errors from a \code{\link{data.frame}} or a .csv file.
 #'
 #' @param ipar item parameters. Can be a \code{\link{data.frame}} or the file path of a .csv file. The content should at least include columns 'ID' and 'MODEL'.
 #' @param ipar_se (optional) standard errors. Can be a \code{\link{data.frame}} or the file path of a .csv file.
-#' @param file (deprecated) use \code{ipar} argument instead.
-#' @param se_file (deprecated) use \code{ipar_se} argument instead.
 #' @param unique if \code{TRUE}, item IDs must be unique to create a valid \code{\linkS4class{item_pool}} object. (default = \code{FALSE})
 #'
 #' @return \code{\link{loadItemPool}} returns an \code{\linkS4class{item_pool}} object.
@@ -46,35 +44,38 @@ NULL
 #' itempool_science <- loadItemPool(f)
 #' file.remove(f)
 #'
-#' ## TestDesign 1.1.0 - Deprecated arguments
-#' \dontrun{
-#' loadItemPool(ipar = "ipar.csv", ipar_se = "se.csv") # is equivalent to
-#' loadItemPool(file = "ipar.csv", se_file = "se.csv") # pre 1.1.0
-#' }
-#'
 #' @seealso \code{\link{dataset_science}}, \code{\link{dataset_reading}}, \code{\link{dataset_fatigue}}, \code{\link{dataset_bayes}} for examples.
 #'
 #' @export
-loadItemPool <- function(ipar, ipar_se = NULL, file = NULL, se_file = NULL, unique = FALSE) {
-
-  if (!missing("se_file")){
-    warning("argument 'se_file' is deprecated. Use 'ipar_se' instead.")
-    ipar_se <- se_file
-  }
-  if (!missing("file")){
-    warning("argument 'file' is deprecated. Use 'ipar' instead.")
-    ipar <- file
-  }
+loadItemPool <- function(ipar, ipar_se = NULL, unique = FALSE) {
 
   if (!is.null(ipar)) {
-    if (inherits(ipar, "data.frame")) {
-      ipar <- ipar
-    } else if (inherits(ipar, "character")) {
-      ipar <- read.csv(ipar, header = TRUE, as.is = TRUE)
-    } else if (inherits(ipar, "SingleGroupClass")) {
-      if (requireNamespace("mirt", quietly = TRUE)) {
+    while(TRUE) {
+      if (inherits(ipar, "data.frame")) {
+        ipar <- ipar
+        break
+      }
+      if (inherits(ipar, "character")) {
+        if (length(ipar) != 1) {
+          stop("the 'ipar' argument expects only one filepath; but it was not one.")
+        }
+        if (!file.exists(ipar)) {
+          stop(
+            sprintf(
+              "the file specified in the 'ipar' argument does not exist: %s",
+              ipar
+            )
+          )
+        }
+        ipar <- read.csv(ipar, header = TRUE, as.is = TRUE)
+        break
+      }
+      if (inherits(ipar, "SingleGroupClass")) {
+        if (!requireNamespace("mirt", quietly = TRUE)) {
+          stop("'mirt' package is required to read SingleGroupClass objects.")
+        }
         if (ipar@Model$nfact > 1) {
-          stop(sprintf("model is not unidimensional: %s factors", ipar@Model$nfact))
+          stop(sprintf("item model is not unidimensional: %s factors", ipar@Model$nfact))
         }
         tmp     <- mirt::coef(ipar, IRTpars = TRUE, simplify = TRUE)$items
         item_id <- rownames(tmp)
@@ -90,9 +91,9 @@ loadItemPool <- function(ipar, ipar_se = NULL, file = NULL, se_file = NULL, uniq
             "unrecognized itemtype: %s",
             paste0(unsupported, collapse = " ")))
         }
-      } else {
-        stop("'mirt' package required to read SingleGroupClass objects")
+        break
       }
+      stop("the 'ipar' argument could not be used to read data; it was not a data frame or a valid filepath, or a mirt SingleGroupClass object.")
     }
   }
 
@@ -118,10 +119,21 @@ loadItemPool <- function(ipar, ipar_se = NULL, file = NULL, se_file = NULL, uniq
       break
     }
     if (inherits(ipar_se, "character")) {
+      if (length(ipar_se) != 1) {
+          stop("the 'ipar_se' argument expects only one filepath; but it was not one.")
+        }
+        if (!file.exists(ipar_se)) {
+          stop(
+            sprintf(
+              "the file specified in the 'ipar_se' argument does not exist: %s",
+              ipar_se
+            )
+          )
+        }
       ipar_se <- read.csv(ipar_se, header = TRUE, as.is = TRUE)
       break
     }
-    break
+    stop("the 'ipar_se' argument could not be used to read data; it was not a data frame or a valid filepath.")
   }
 
   if (is.null(ipar_se)) {
@@ -262,14 +274,19 @@ loadItemPool <- function(ipar, ipar_se = NULL, file = NULL, se_file = NULL, uniq
 
     stop(
       sprintf(
-        "Item %s: unexpected IRT model '%s' (valid models are 1PL, 2PL, 3PL, PC, GPC, GR)",
-        i, model[i]
+        "Item %s (%s): unexpected IRT model '%s' (valid models are 1PL, 2PL, 3PL, PC, GPC, GR)",
+        i, ipar[["ID"]][i], model[i]
       )
     )
 
   }
   if (sum(!valid) > 0) {
-    stop(paste("Check the parameters for the following item(s):", paste((1:ni)[!valid], collapse = ", "), "\n"))
+    invalid_items <- which(!valid)
+    invalid_items <- sprintf("row %s (%s)", invalid_items, ipar[["ID"]][invalid_items])
+    stop(sprintf(
+      "some items had invalid item parameters; check the following item(s): %s",
+      paste(invalid_items, collapse = ", ")
+    ))
   }
 
   item_pool@ni <- ni
@@ -286,6 +303,7 @@ loadItemPool <- function(ipar, ipar_se = NULL, file = NULL, se_file = NULL, uniq
   if (validObject(item_pool)) {
     return(item_pool)
   }
+
 }
 
 #' @rdname loadItemAttrib
@@ -298,16 +316,19 @@ setClass("item_attrib",
   ),
   validity = function(object) {
     if (!("ID" %in% names(object@data))) {
-      stop("The 'ID' column must be present.")
+      stop("the 'ID' column does not exist; it must be present.")
     }
     if (any(object@data[["ID"]] %in% c("", " ", "NA", "N/A"))) {
-      stop("The 'ID' column in must not include empty or NA values.")
+      stop("the 'ID' column has empty or NA values; it must not have any.")
     }
     if (length(unique(object@data[["ID"]])) != nrow(object@data)) {
-      stop("The 'ID' column in must not have any duplicate values.")
+      stop("the 'ID' column has duplicate values; it must be all unique.")
     }
     if (!identical(object@data[["INDEX"]], 1:length(object@data[["INDEX"]]))) {
-      stop(sprintf("The 'INDEX' column must be equal to 1:%s.", length(object@data[["INDEX"]])))
+      stop(sprintf(
+        "the 'INDEX' column must be equal to 1:%s.",
+        length(object@data[["INDEX"]])
+      ))
     }
     return(TRUE)
   }
@@ -315,12 +336,11 @@ setClass("item_attrib",
 
 #' Load item attributes
 #'
-#' \code{\link{loadItemAttrib}} is a data loading function to create an \code{\linkS4class{item_attrib}} object.
 #' \code{\link{loadItemAttrib}} can read item attributes a \code{\link{data.frame}} or a .csv file.
+#' \code{\link{loadItemAttrib}} is a data loading function for creating an \code{\linkS4class{item_attrib}} object.
 #'
 #' @param object item attributes. Can be a \code{\link{data.frame}} or the file path of a .csv file. The content should at least include column 'ID' that matches with the \code{\linkS4class{item_pool}} object.
 #' @template pool_param
-#' @template deprecated_file_object_param
 #'
 #' @return \code{\link{loadItemAttrib}} returns an \code{\linkS4class{item_attrib}} object.
 #'
@@ -339,30 +359,45 @@ setClass("item_attrib",
 #' itemattrib_science <- loadItemAttrib(f, itempool_science)
 #' file.remove(f)
 #'
-#' ## TestDesign 1.1.0 - Deprecated arguments
-#' \dontrun{
-#' loadItemAttrib(object = "iatt.csv", pool) # is equivalent to
-#' loadItemAttrib(file   = "iatt.csv", pool) # pre 1.1.0
-#' }
-#'
 #' @seealso \code{\link{dataset_science}}, \code{\link{dataset_reading}}, \code{\link{dataset_fatigue}}, \code{\link{dataset_bayes}} for examples.
 #'
 #' @export
-loadItemAttrib <- function(object, pool, file = NULL) {
+loadItemAttrib <- function(object, pool) {
 
-  if (is.null(pool) || !inherits(pool, "item_pool")) {
-    stop("'pool' is missing or is not an 'item_pool' object.")
+  if (is.null(pool)) {
+    stop("the 'pool' argument is missing.")
   }
 
-  if (!missing("file")){
-    warning("argument 'file' is deprecated. Use 'object' instead.")
-    object <- file
+  if (!inherits(pool, "item_pool")) {
+    stop("the 'pool' argument is not an 'item_pool' object.")
   }
+
+  if (!validObject(pool)) {
+    stop("the 'pool' argument is not a valid 'item_pool' object.")
+  }
+
   if (!is.null(object)) {
-    if (inherits(object, "data.frame")) {
-      item_attrib <- object
-    } else if (inherits(object, "character")) {
-      item_attrib <- read.csv(object, header = TRUE, as.is = TRUE)
+    while (TRUE) {
+      if (inherits(object, "data.frame")) {
+        item_attrib <- object
+        break
+      }
+      if (inherits(object, "character")) {
+        if (length(object) != 1) {
+          stop("the 'object' argument expects only one filepath; but it was not one.")
+        }
+        if (!file.exists(object)) {
+          stop(
+            sprintf(
+              "the file specified in the 'object' argument does not exist: %s",
+              object
+            )
+          )
+        }
+        item_attrib <- read.csv(object, header = TRUE, as.is = TRUE)
+        break
+      }
+      stop("the 'object' argument could not be used to read data; it was not a data frame or a valid filepath.")
     }
   }
 
@@ -372,17 +407,28 @@ loadItemAttrib <- function(object, pool, file = NULL) {
     item_attrib[["ID"]] <- as.character(item_attrib[["ID"]])
   }
 
-  if (!all(sort(pool@id) == sort(item_attrib[["ID"]]))) {
-    stop("The 'ID' values must match pool@id.")
-  } else if (!all(pool@id == item_attrib[["ID"]])) {
-    item_attrib <- merge(data.frame(ID = pool@id), item_attrib, by = "ID")[, names(item_attrib)] # re-ordering cols in attrib
+  # consistency check with item pool ID values ---------------------------------
+
+  if (length(pool@id) != length(item_attrib[["ID"]])) {
+    stop("the 'ID' column values of supplied item attributes must exactly match pool@id; they do not have the same # of IDs.")
   }
 
-  if (nrow(item_attrib) != pool@ni) {
-    stop("The number of rows must match pool@ni.")
+  if (!all(sort(pool@id) == sort(item_attrib[["ID"]]))) {
+    stop("the 'ID' column values of supplied item attributes must exactly match pool@id; they do not match after sorting.")
+  }
+
+  if (!all(pool@id == item_attrib[["ID"]])) {
+    # IDs match but are in different row orders
+    # attempt to match row orders here
+    known_column_order <- names(item_attrib)
+    item_attrib <- merge(
+      data.frame(ID = pool@id), item_attrib, by = "ID"
+    )
+    item_attrib <- item_attrib[, known_column_order]
   }
 
   if ("STID" %in% names(item_attrib)) {
+    # parse stimulus IDs
     idx <- item_attrib[["STID"]] %in% c("", " ", "N/A")
     if (any(idx)) {
       item_attrib[["STID"]][idx] <- NA
@@ -394,16 +440,17 @@ loadItemAttrib <- function(object, pool, file = NULL) {
 
   if ("INDEX" %in% names(item_attrib)) {
     item_attrib$INDEX <- NULL
-    warning("The 'INDEX' column was ignored because it is reserved for internal use.")
+    warning("the 'INDEX' column was ignored because it is reserved for internal use.")
   }
   item_attrib <- data.frame(cbind(INDEX = 1:nrow(item_attrib), item_attrib))
 
-  out <- new("item_attrib")
-  out@data <- item_attrib
+  o <- new("item_attrib")
+  o@data <- item_attrib
 
-  if (validObject(out)) {
-    return(out)
+  if (validObject(o)) {
+    return(o)
   }
+
 }
 
 #' @rdname loadStAttrib
@@ -416,16 +463,19 @@ setClass("st_attrib",
   ),
   validity = function(object) {
     if (!("STID" %in% names(object@data))) {
-      stop("The 'STID' column must be present.")
+      stop("the 'STID' column does not exist; it must be present.")
     }
-    if (any(object@data[["STID"]] %in% c("", " ", NA))) {
-      stop("The 'STID' column in must not include empty or NA values.")
+    if (any(object@data[["STID"]] %in% c("", " ", "NA", "N/A"))) {
+      stop("the 'STID' column has empty or NA values; it must not have any.")
     }
     if (length(unique(object@data[["STID"]])) != nrow(object@data)) {
-      stop("The 'STID' column in must not have any duplicate values.")
+      stop("the 'STID' column has duplicate values; it must be all unique.")
     }
     if (!identical(object@data[["STINDEX"]], 1:length(object@data[["STINDEX"]]))) {
-      stop(sprintf("The 'STINDEX' column must be equal to 1:%s.", length(object@data[["STINDEX"]])))
+      stop(sprintf(
+        "the 'STINDEX' column must be equal to 1:%s.",
+        length(object@data[["STINDEX"]])
+      ))
     }
     return(TRUE)
   }
@@ -435,12 +485,11 @@ setClassUnion("stattrib_or_null", c("st_attrib", "NULL"))
 
 #' Load set/stimulus/passage attributes
 #'
-#' \code{\link{loadStAttrib}} is a data loading function to create an \code{\linkS4class{st_attrib}} object.
+#' \code{\link{loadStAttrib}} is a data loading function for creating an \code{\linkS4class{st_attrib}} object.
 #' \code{\link{loadStAttrib}} can read stimulus attributes a \code{\link{data.frame}} or a .csv file.
 #'
 #' @param object set attributes. Can be a \code{\link{data.frame}} or the file path of a .csv file. The content should at least include the column 'STID' referring to the column 'STID' in the \code{data} slot of the \code{\linkS4class{item_attrib}} object.
 #' @template item_attrib_param
-#' @template deprecated_file_object_param
 #'
 #' @return \code{\link{loadStAttrib}} returns a \code{\linkS4class{st_attrib}} object.
 #'
@@ -460,31 +509,45 @@ setClassUnion("stattrib_or_null", c("st_attrib", "NULL"))
 #' stimattrib_reading <- loadStAttrib(f, itemattrib_reading)
 #' file.remove(f)
 #'
-#' ## TestDesign 1.1.0 - Deprecated arguments
-#' \dontrun{
-#' loadStAttrib(object = "satt.csv", item_attrib) # is equivalent to
-#' loadStAttrib(file   = "satt.csv", item_attrib) # pre 1.1.0
-#' }
-#'
 #' @seealso \code{\link{dataset_reading}} for examples.
 #'
 #' @export
-loadStAttrib <- function(object, item_attrib, file = NULL) {
+loadStAttrib <- function(object, item_attrib) {
 
-  if (is.null(item_attrib) || !inherits(item_attrib, "item_attrib")) {
-    stop("'item_attrib' is missing or is not an 'item_attrib' object.")
+  if (is.null(item_attrib)) {
+    stop("the 'item_attrib' argument is missing.")
   }
 
-  if (!missing("file")){
-    warning("Argument deprecated. Use 'object' instead.")
-    object <- file
+  if (!inherits(item_attrib, "item_attrib")) {
+    stop("the 'item_attrib' argument is not an 'item_attrib' object.")
+  }
+
+  if (!validObject(item_attrib)) {
+    stop("the 'item_attrib' argument is not a valid 'item_attrib' object.")
   }
 
   if (!is.null(object)) {
-    if (inherits(object, "data.frame")) {
-      st_attrib <- object
-    } else if (inherits(object, "character")) {
-      st_attrib <- read.csv(object, header = TRUE, as.is = TRUE)
+    while (TRUE) {
+      if (inherits(object, "data.frame")) {
+        st_attrib <- object
+        break
+      }
+      if (inherits(object, "character")) {
+        if (length(object) != 1) {
+          stop("the 'object' argument expects only one filepath; but it was not one.")
+        }
+        if (!file.exists(object)) {
+          stop(
+            sprintf(
+              "the file specified in the 'object' argument does not exist: %s",
+              object
+            )
+          )
+        }
+        st_attrib <- read.csv(object, header = TRUE, as.is = TRUE)
+        break
+      }
+      stop("the 'object' argument could not be used to read data; it was not a data frame or a valid filepath.")
     }
   }
 
@@ -495,28 +558,36 @@ loadStAttrib <- function(object, item_attrib, file = NULL) {
   }
   if ("STINDEX" %in% names(st_attrib)) {
     st_attrib$STINDEX <- NULL
-    warning("The 'STINDEX' column was ignored because it is reserved for internal use.")
+    warning("the 'STINDEX' column was ignored because it is reserved for internal use.")
   }
   st_attrib <- data.frame(cbind(STINDEX = 1:nrow(st_attrib), st_attrib))
 
   if (!("STID" %in% names(item_attrib@data))) {
-    stop("'item_attrib' must have 'STID' column.")
+    stop("the 'item_attrib' argument does not have an 'STID' column; it must have one.")
   }
-  if (!all(unique(na.omit(item_attrib@data[["STID"]])) %in% st_attrib[["STID"]])) {
-    stop("The 'STID' column in 'st_attrib' content must have all unique values in the 'STID' column of 'item_attrib' content.")
+  expected_ids  <- unique(na.omit(item_attrib@data[["STID"]]))
+  actual_ids    <- st_attrib[["STID"]]
+  undefined_ids <- setdiff(expected_ids, actual_ids)
+  if (length(undefined_ids) > 0) {
+    stop(sprintf(
+      "%s %s %s",
+      "all unique 'STID's in the 'item_attrib' object must appear in the 'STID' column of the 'object' argument;",
+      "this condition was not met. see these STIDs:",
+      paste(undefined_ids, collapse = ", ")
+    ))
   }
 
-  out <- new("st_attrib")
-  out@data <- st_attrib
+  o <- new("st_attrib")
+  o@data <- st_attrib
 
-  if (validObject(out)) {
-    return(out)
+  if (validObject(o)) {
+    return(o)
   }
 }
 
 #' Class 'constraint': a single constraint
 #'
-#' \code{\linkS4class{constraint}} is an S4 class to represent a single constraint.
+#' \code{\linkS4class{constraint}} is an S4 class for representing a single constraint.
 #'
 #' @slot constraint the numeric index of the constraint.
 #' @slot constraint_id the character ID of the constraint.
@@ -591,7 +662,7 @@ setClass("constraint",
 
 #' Class 'constraints': a set of constraints
 #'
-#' \code{\linkS4class{constraints}} is an S4 class to represent a set of constraints and its associated objects.
+#' \code{\linkS4class{constraints}} is an S4 class for representing a set of constraints and its associated objects.
 #'
 #' See \code{\link{constraints-operators}} for object manipulation functions.
 #'
@@ -732,15 +803,14 @@ setClass("constraints",
 
 #' Load constraints
 #'
-#' \code{\link{loadConstraints}} is a data loading function to create a \code{\linkS4class{constraints}} object.
+#' \code{\link{loadConstraints}} is a data loading function for creating a \code{\linkS4class{constraints}} object.
 #' \code{\link{loadConstraints}} can read constraints from a data.frame or a .csv file.
-#' The contents must be in the expected format; see the vignette in \code{vignette("constraints")}.
+#' The contents must be in the expected format; see the vignette in \code{vignette("constraints")} for a documentation.
 #'
-#' @param object constraint specifications. Can be a \code{\link{data.frame}} or the file path of a .csv file. See the vignette for the expected format.
+#' @param object constraint specifications. Can be a \code{\link{data.frame}} or the file path of a .csv file. See the vignette for a description of the expected format.
 #' @template pool_param
 #' @template item_attrib_param
 #' @template st_attrib_param
-#' @template deprecated_file_object_param
 #'
 #' @return \code{\link{loadConstraints}} returns a \code{\linkS4class{constraints}} object. This object is used in \code{\link{Static}} and \code{\link{Shadow}}.
 #'
@@ -758,16 +828,10 @@ setClass("constraints",
 #'   itempool_science, itemattrib_science)
 #' file.remove(f)
 #'
-#' ## TestDesign 1.1.0 - Deprecated arguments
-#' \dontrun{
-#' loadConstraints(object = "consts.csv", pool, item_attrib) # is equivalent to
-#' loadConstraints(file   = "consts.csv", pool, item_attrib) # pre 1.1.0
-#' }
-#'
 #' @seealso \code{\link{dataset_science}}, \code{\link{dataset_reading}}, \code{\link{dataset_fatigue}}, \code{\link{dataset_bayes}} for examples.
 #'
 #' @export
-loadConstraints <- function(object, pool, item_attrib, st_attrib = NULL, file = NULL) {
+loadConstraints <- function(object, pool, item_attrib, st_attrib = NULL) {
 
   if (!inherits(pool, "item_pool")) {
     stop("'pool' argument must be an 'item_pool' object")
@@ -779,11 +843,6 @@ loadConstraints <- function(object, pool, item_attrib, st_attrib = NULL, file = 
     if (!inherits(st_attrib, "st_attrib")) {
       stop("'st_attrib' argument must be a 'st_attrib' object")
     }
-  }
-
-  if (!missing("file")){
-    warning("argument 'file' is deprecated. Use 'object' instead.")
-    object <- file
   }
 
   if (!is.null(object)) {
@@ -801,7 +860,7 @@ loadConstraints <- function(object, pool, item_attrib, st_attrib = NULL, file = 
     }
   }
 
-  constraints <- normalizeConstraintData(constraints)
+  constraints <- sanitizeConstraintsData(constraints)
 
   # Validation: Pool
   ni <- pool@ni
@@ -829,7 +888,7 @@ loadConstraints <- function(object, pool, item_attrib, st_attrib = NULL, file = 
       stop("constraints: stimulus-based constraints require 'STID' column in item_attrib@data")
     }
 
-    set_based <- TRUE
+    group_by_stimulus <- TRUE
     constraints[["ST_COUNT"]] <- NA
 
     id <- c(item_attrib@data[["ID"]], st_attrib@data[["STID"]])
@@ -857,7 +916,7 @@ loadConstraints <- function(object, pool, item_attrib, st_attrib = NULL, file = 
     }
 
   } else if (length(item_constraints) > 0) {
-    set_based <- FALSE
+    group_by_stimulus <- FALSE
     nv <- ni
     id <- item_attrib@data[["ID"]]
     item_index_by_stimulus <- NULL
@@ -870,20 +929,20 @@ loadConstraints <- function(object, pool, item_attrib, st_attrib = NULL, file = 
     x <- constraints[index, ]
     validate_constraints <- validateConstraintData(x, item_attrib)
   }
-  if (set_based) {
+  if (group_by_stimulus) {
     for (index in stim_constraints) {
       x <- constraints[index, ]
       validate_constraints <- validateConstraintData(x, st_attrib)
     }
   }
 
-  constants           <- list()
-  constants$ni        <- ni
-  constants$ns        <- ns
-  constants$nv        <- nv
-  constants$set_based <- set_based
-  constants$i_by_s    <- item_index_by_stimulus
-  constants$s_by_i    <- stimulus_index_by_item
+  constants                   <- list()
+  constants$ni                <- ni
+  constants$ns                <- ns
+  constants$nv                <- nv
+  constants$group_by_stimulus <- group_by_stimulus
+  constants$i_by_s            <- item_index_by_stimulus
+  constants$s_by_i            <- stimulus_index_by_item
   constants <- getLBUBInConstraintData(constants, constraints, item_constraints, stim_constraints)
 
   for (index in item_constraints) {
@@ -895,7 +954,7 @@ loadConstraints <- function(object, pool, item_attrib, st_attrib = NULL, file = 
 
       if (toupper(constraints[["CONDITION"]][index]) %in% c("", " ", "PER TEST", "TEST")) {
 
-        if (set_based && !common_stimulus_length) {
+        if (group_by_stimulus && !common_stimulus_length) {
           n_LB_eq_UB <- sum(stimulus_length_LB == stimulus_length_UB)
           n_LB_ne_UB <- sum(stimulus_length_LB != stimulus_length_UB)
           tmp_mat <- matrix(0, nrow = ns + n_LB_ne_UB, ncol = nv)
@@ -925,7 +984,7 @@ loadConstraints <- function(object, pool, item_attrib, st_attrib = NULL, file = 
         }
       } else if (toupper(constraints[["CONDITION"]][index]) %in% c("PER STIMULUS", "PER PASSAGE", "PER SET", "PER TESTLET")) {
 
-        if (!set_based) {
+        if (!group_by_stimulus) {
           stop(sprintf("Constraints must include at least one 'STIMULUS' under WHAT for CONDITION: %s", toupper(constraints[["CONDITION"]][index])))
         }
 
@@ -946,7 +1005,7 @@ loadConstraints <- function(object, pool, item_attrib, st_attrib = NULL, file = 
 
   }
 
-  if (set_based) {
+  if (group_by_stimulus) {
     for (index in stim_constraints) {
 
       list_constraints[[index]] <- parseConstraintData(constraints[index, ], st_attrib, constants)
@@ -978,35 +1037,35 @@ loadConstraints <- function(object, pool, item_attrib, st_attrib = NULL, file = 
     }
   }
 
-  out <- new("constraints")
-  out@constraints      <- constraints
-  out@list_constraints <- list_constraints
-  out@pool             <- pool
-  out@item_attrib      <- item_attrib
-  out@st_attrib        <- st_attrib
-  out@test_length      <- constants$i_count$LB
-  out@nv    <- nv
-  out@ni    <- ni
-  out@ns    <- ns
-  out@id    <- id
-  out@index <- index
-  out@mat   <- mat
-  out@dir   <- dir
-  out@rhs   <- rhs
-  out@set_based              <- set_based
-  out@item_order             <- item_order
-  out@item_order_by          <- item_order_by
-  out@stim_order             <- stim_order
-  out@stim_order_by          <- stim_order_by
-  out@item_index_by_stimulus <- item_index_by_stimulus
-  out@stimulus_index_by_item <- stimulus_index_by_item
+  o <- new("constraints")
+  o@constraints      <- constraints
+  o@list_constraints <- list_constraints
+  o@pool             <- pool
+  o@item_attrib      <- item_attrib
+  o@st_attrib        <- st_attrib
+  o@test_length      <- constants$i_count$LB
+  o@nv    <- nv
+  o@ni    <- ni
+  o@ns    <- ns
+  o@id    <- id
+  o@index <- index
+  o@mat   <- mat
+  o@dir   <- dir
+  o@rhs   <- rhs
+  o@set_based              <- group_by_stimulus
+  o@item_order             <- item_order
+  o@item_order_by          <- item_order_by
+  o@stim_order             <- stim_order
+  o@stim_order_by          <- stim_order_by
+  o@item_index_by_stimulus <- item_index_by_stimulus
+  o@stimulus_index_by_item <- stimulus_index_by_item
 
-  return(out)
+  return(o)
 }
 
 #' Build constraints (shortcut to other loading functions)
 #'
-#' \code{\link{buildConstraints}} is a data loading function to create a \code{\linkS4class{constraints}} object.
+#' \code{\link{buildConstraints}} is a data loading function for creating a \code{\linkS4class{constraints}} object.
 #' \code{\link{buildConstraints}} is a shortcut that calls other data loading functions.
 #' The constraints must be in the expected format; see the vignette in \code{vignette("constraints")}.
 #'
@@ -1014,8 +1073,6 @@ loadConstraints <- function(object, pool, item_attrib, st_attrib = NULL, file = 
 #' @param item_pool item parameters. Can be a \code{\linkS4class{item_pool}} object, a data.frame or the file path of a .csv file.
 #' @param item_attrib item attributes. Can be an \code{\linkS4class{item_attrib}} object, a data.frame or the file path of a .csv file.
 #' @param st_attrib (optional) stimulus attributes. Can be an \code{\linkS4class{st_attrib}} object, a data.frame or the file path of a .csv file.
-#' @param pool (deprecated) use \code{item_pool} argument instead.
-#' @param constraints (deprecated) use \code{object} argument instead.
 #'
 #' @return \code{\link{buildConstraints}} returns a \code{\linkS4class{constraints}} object. This object is used in \code{\link{Static}} and \code{\link{Shadow}}.
 #'
@@ -1044,16 +1101,7 @@ loadConstraints <- function(object, pool, item_attrib, st_attrib = NULL, file = 
 #' file.remove(f2)
 #' file.remove(f3)
 #' @export
-buildConstraints <- function(object, item_pool, item_attrib, st_attrib = NULL, pool = NULL, constraints = NULL) {
-
-  if (!missing("pool")){
-    warning("argument 'pool' is deprecated. Use 'item_pool' instead.")
-    item_pool <- pool
-  }
-  if (!missing("constraints")){
-    warning("argument 'constraints' is deprecated. Use 'object' instead.")
-    object <- constraints
-  }
+buildConstraints <- function(object, item_pool, item_attrib, st_attrib = NULL) {
 
   if (!inherits(item_pool, "item_pool")) {
     item_pool <- loadItemPool(item_pool)

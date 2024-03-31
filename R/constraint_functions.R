@@ -1,6 +1,6 @@
 
 #' @noRd
-normalizeConstraintData <- function(x) {
+sanitizeConstraintsData <- function(x) {
 
   names(x)    <- toupper(names(x))
 
@@ -33,14 +33,14 @@ normalizeConstraintData <- function(x) {
 #' @noRd
 validateLBUB <- function(x, allow_range = TRUE) {
   if (any(c(x$LB, x$UB) < 0)) {
-      stop(sprintf("constraint %s: LB and UB must be >= 0", x$CONSTRAINT))
-    }
+    stop(sprintf("constraint %s: LB and UB must be >= 0; this condition was not met.", x$CONSTRAINT))
+  }
   if (x$LB > x$UB) {
-    stop(sprintf("constraint %s: LB <= UB must be TRUE", x$CONSTRAINT))
+    stop(sprintf("constraint %s: LB <= UB must be TRUE; this condition was not met.", x$CONSTRAINT))
   }
   if (!allow_range) {
     if (x$LB != x$UB) {
-      stop(sprintf("constraint %s: LB == UB must be TRUE for test length", x$CONSTRAINT))
+      stop(sprintf("constraint %s: LB == UB must be TRUE for test length; this condition was not met.", x$CONSTRAINT))
     }
   }
 }
@@ -50,7 +50,7 @@ validateExpression <- function(x, attrib, unit_name, use_lt) {
 
   try_parse <- try(parse(text = x$CONDITION))
   if (inherits(try_parse, "try-error")) {
-    stop(sprintf("constraint %s: '%s' is not a valid expression", x$CONSTRAINT, x$CONDITION))
+    stop(sprintf("constraint %s: '%s' is not a valid expression.", x$CONSTRAINT, x$CONDITION))
   }
 
   idx <- with(attrib@data, eval(try_parse))
@@ -231,14 +231,14 @@ parseConstraintData <- function(x, attrib, constants) {
     nx     <- constants$ns
   }
 
-  ni        <- constants$ni
-  ns        <- constants$ns
-  nv        <- constants$nv
-  set_based <- constants$set_based
-  i_by_s    <- constants$i_by_s
-  s_by_i    <- constants$s_by_i
-  i_count   <- constants$i_count
-  s_count   <- constants$s_count
+  ni                <- constants$ni
+  ns                <- constants$ns
+  nv                <- constants$nv
+  group_by_stimulus <- constants$group_by_stimulus
+  i_by_s            <- constants$i_by_s
+  s_by_i            <- constants$s_by_i
+  i_count           <- constants$i_count
+  s_count           <- constants$s_count
 
   o <- new("constraint")
   o@constraint    <- x$CONSTRAINT
@@ -454,7 +454,7 @@ parseConstraintData <- function(x, attrib, constants) {
     o@dir <- "=="
     o@rhs <- length(idx)
 
-    if (nx == ni && set_based) {
+    if (nx == ni && group_by_stimulus) {
       s <- na.omit(unique(s_by_i[idx]))
       o@mat[1, nx_pad + s] <- 1
       o@rhs <- o@rhs + length(s)
@@ -721,7 +721,7 @@ addSolutionToConstraintData <- function(x, attrib, item_idx, all_values) {
 
 #' Retrieve constraints-related attributes from solution
 #'
-#' \code{\link{getSolutionAttributes}} is a helper function to retrieve constraints-related attributes from a solution.
+#' \code{\link{getSolutionAttributes}} is a helper function for retrieving constraints-related attributes from a solution.
 #'
 #' @param constraints a \code{\linkS4class{constraints}} object.
 #' @param item_idx item indices from a solution.

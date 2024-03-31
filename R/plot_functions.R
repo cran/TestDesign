@@ -40,7 +40,6 @@ NULL
 #' @param rmse used in \code{\linkS4class{output_Shadow_all}} with \code{type = 'exposure'}. If \code{TRUE}, display the RMSE value for each segment. (default = \code{FALSE})
 #' @param use_segment_label used in \code{\linkS4class{output_Shadow_all}} with \code{type = 'exposure'}. If \code{TRUE}, display the segment label for each segment. (default = \code{TRUE})
 #' @param use_par if \code{FALSE}, graphical parameters are not overridden inside the function. (default = \code{TRUE})
-#' @param theta_segment (deprecated) use \code{theta_type} argument instead.
 #' @param ... arguments to pass onto \code{\link[graphics]{plot}}.
 #'
 #' @examples
@@ -390,14 +389,9 @@ setMethod(
     rmse = FALSE,
     use_segment_label = TRUE,
     use_par = TRUE,
-    theta_segment = NULL,
     ...
 ) {
 
-  if (!missing("theta_segment")){
-    warning("argument 'theta_segment' is deprecated. Use 'theta_type' instead.")
-    theta_type <- theta_segment
-  }
   if (!type %in% c("audit", "shadow", "info", "score", "exposure")) {
     stop("plot(output_Shadow_all): 'type' must be 'audit', 'shadow', 'info', 'score', or 'exposure'")
   }
@@ -1087,21 +1081,21 @@ plotShadowExposure <- function(
     mtext(text = "Exposure Rate", side = 2, line = 0, outer = TRUE)
   }
 
-  out <- new("exposure_rate_plot")
-  out@plot <- NULL
-  out@item_exposure_rate         <- item_exposure_rate
-  out@item_exposure_rate_segment <- item_exposure_rate_segment
-  out@item_exposure_rate_segment_final <- item_exposure_rate_segment_final
-  out@stim_exposure_rate               <- stim_exposure_rate
-  out@stim_exposure_rate_segment       <- stim_exposure_rate_segment
-  out@stim_exposure_rate_segment_final <- stim_exposure_rate_segment_final
-  out@segment_rate_table <- segment_rate_table
-  out@n_segment <- n_segment
-  out@segment_n <- segment_n
-  out@segment_cut <- segment_cut
-  out@segment_label <- segment_label
+  o <- new("exposure_rate_plot")
+  o@plot <- NULL
+  o@item_exposure_rate         <- item_exposure_rate
+  o@item_exposure_rate_segment <- item_exposure_rate_segment
+  o@item_exposure_rate_segment_final <- item_exposure_rate_segment_final
+  o@stim_exposure_rate               <- stim_exposure_rate
+  o@stim_exposure_rate_segment       <- stim_exposure_rate_segment
+  o@stim_exposure_rate_segment_final <- stim_exposure_rate_segment_final
+  o@segment_rate_table <- segment_rate_table
+  o@n_segment <- n_segment
+  o@segment_n <- segment_n
+  o@segment_cut <- segment_cut
+  o@segment_label <- segment_label
 
-  return(out)
+  return(o)
 
 }
 

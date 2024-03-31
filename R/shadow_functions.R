@@ -3,7 +3,7 @@ NULL
 
 #' Run adaptive test assembly
 #'
-#' \code{\link{Shadow}} is a test assembly function to perform adaptive test assembly based on the generalized shadow-test framework.
+#' \code{\link{Shadow}} is a test assembly function for performing adaptive test assembly based on the generalized shadow-test framework.
 #'
 #' @template config_Shadow-param
 #' @template constraints-param
@@ -87,9 +87,9 @@ setMethod(
     constants             <- getConstants(constraints, config, data, true_theta, simulation_data_cache@max_info)
     config@interim_theta  <- parsePriorParameters(config@interim_theta, constants, prior, prior_par)
     config@final_theta    <- parsePriorParameters(config@final_theta  , constants, prior, prior_par)
-    posterior_constants   <- getPosteriorConstants(config)
-    initial_theta         <- parseInitialTheta(config, constants, item_pool, posterior_constants, include_items_for_estimation)
-    item_parameter_sample <- generateItemParameterSample(config, item_pool, posterior_constants)
+    bayesian_constants    <- getBayesianConstants(config, constants)
+    initial_theta         <- parseInitialTheta(config, constants, item_pool, bayesian_constants, include_items_for_estimation)
+    item_parameter_sample <- generateItemParameterSample(config, item_pool, bayesian_constants)
     exclude_index         <- getIndexOfExcludedEntry(exclude, constraints)
 
     # Only used if config@item_selection$method = "FIXED"
@@ -153,7 +153,7 @@ setMethod(
       o@test_length_constraints     <- constants$max_ni
       o@ni_pool                     <- constants$ni
       o@ns_pool                     <- constants$ns
-      o@set_based                   <- constants$set_based
+      o@set_based                   <- constants$group_by_stimulus
       o@item_index_by_stimulus      <- constraints@item_index_by_stimulus
 
       # Simulee: initialize theta estimate
@@ -161,15 +161,19 @@ setMethod(
         config@interim_theta,
         initial_theta,
         j,
-        posterior_constants
+        bayesian_constants
       )
       o@initial_theta_est <- current_theta
 
-      # Simulee: initialize stimulus record
+      # Simulee: initialize selection
+      selection <- list()
 
-      if (constants$set_based) {
+      # Simulee: initialize completed groupings (item sets) record
+
+      if (constants$group_by_stimulus) {
         o@administered_stimulus_index <- rep(NA_real_, constants$max_ni)
-        stimulus_record <- initializeStimulusRecord()
+        groupings_record <- initializeCompletedGroupingsRecord()
+        selection$is_last_item_in_this_set <- TRUE
       }
 
       # Simulee: initialize shadow test record
@@ -185,8 +189,8 @@ setMethod(
 
       # Simulee: flag ineligibile items
 
-      if (constants$use_eligibility_control) {
-        eligible_flag <- flagIneligible(exposure_record, constants, constraints@item_index_by_stimulus, seed, j)
+      if (constants$use_exposure_control) {
+        eligibility_flag <- flagIneligible(exposure_record, constants, constraints@item_index_by_stimulus, seed, j)
       }
 
       # Simulee: create augmented pool if applicable
@@ -228,7 +232,7 @@ setMethod(
             shadowtest_refresh_schedule,
             position,
             theta_change,
-            stimulus_record
+            selection
           )) {
 
             if (!is.null(seed)) {
@@ -236,9 +240,9 @@ setMethod(
             }
             shadowtest <- assembleShadowTest(
               j, position, o,
-              eligible_flag,
+              eligibility_flag,
               exclude_index,
-              stimulus_record,
+              groupings_record,
               info_current_theta,
               config,
               constants,
@@ -266,7 +270,10 @@ setMethod(
 
           # Select an item from shadow test
 
-          selection <- selectItemFromShadowTest(shadowtest$shadow_test, position, constants, o, stimulus_record)
+          selection <- selectItemFromShadowTest(
+            shadowtest$shadow_test, position, constants, o,
+            selection
+          )
           o@administered_item_index[position] <- selection$item_selected
           o@shadow_test[[position]]$i         <- shadowtest$shadow_test$INDEX
           o@shadow_test[[position]]$s         <- shadowtest$shadow_test$STINDEX
@@ -283,14 +290,14 @@ setMethod(
 
         # Item position / simulee: record which stimulus was administered
 
-        if (constants$set_based) {
+        if (constants$group_by_stimulus) {
 
           o@administered_stimulus_index[position] <- selection$stimulus_selected
 
-          stimulus_record <- updateCompletedStimulusRecord(
-            stimulus_record,
+          groupings_record <- updateCompletedGroupingsRecordForStimulus(
+            groupings_record,
             selection,
-            o@administered_stimulus_index,
+            o,
             position
           )
 
@@ -351,7 +358,7 @@ setMethod(
           item_parameter_sample,
           config,
           constants,
-          posterior_constants
+          bayesian_constants
         )
 
         theta_change                   <- o@interim_theta_est[position, ] - current_theta$theta
@@ -384,7 +391,7 @@ setMethod(
         item_parameter_sample,
         config,
         constants,
-        posterior_constants
+        bayesian_constants
       )
 
       # Simulee: record item usage
@@ -395,8 +402,7 @@ setMethod(
         exposure_record, segment_record,
         o, j,
         current_theta,
-        eligible_flag,
-        config,
+        eligibility_flag,
         constants
       )
       exposure_record_detailed <- doExposureControlDetailed(

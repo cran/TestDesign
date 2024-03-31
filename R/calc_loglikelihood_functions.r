@@ -3,7 +3,7 @@ NULL
 
 #' Calculate log-likelihood
 #'
-#' \code{\link{calcLogLikelihood}} is a function to calculate log-likelihood values.
+#' \code{\link{calcLogLikelihood}} is a function for calculating log-likelihood values.
 #'
 #' @param object an \code{\linkS4class{item_pool}} object.
 #' @param theta theta values to use.
@@ -72,10 +72,10 @@ setMethod(
   signature = c("item_pool", "matrix", "matrix"),
   definition = function(object, theta, resp) {
     if (nrow(theta) == 0) {
-      stop("'theta' must have at least one value")
+      stop("the 'theta' argument is empty; it must have at least one value.")
     }
     if (any(is.na(theta))) {
-      stop("'theta' must have no missing values")
+      stop("the 'theta' argument contains missing values; it must not have any.")
     }
     LL <- calc_log_likelihood_function(
       theta, object@ipar, resp, object@NCAT,

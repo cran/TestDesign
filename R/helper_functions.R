@@ -6,7 +6,7 @@ NULL
 #' @param object an \code{\linkS4class{output_Static}} object or an \code{\linkS4class{output_Shadow}} object.
 #' @param examinee (optional) the examinee index to display the solution. Used when the 'object' argument is an \code{\linkS4class{output_Shadow}} object.
 #' @param position (optional) if supplied, display the item attributes of the assembled test at that item position. If not supplied, display the item attributes of the administered items. Used when the 'object' argument is an \code{\linkS4class{output_Shadow}} object.
-#' @param index_only if \code{TRUE}, only print item indices. if \code{FALSE}, print all item attributes. (default = {TRUE})
+#' @param index_only if \code{TRUE}, only print item indices. if \code{FALSE}, print all item attributes. (default = \code{TRUE})
 #'
 #' @return Item attributes of solution items.
 #'
@@ -70,13 +70,18 @@ setMethod(
 #' @noRd
 countConstraints <- function(constraints, item_idx) {
 
+  # this is an orphaned function; this is not being used anywhere.
+  # getSolutionAttributes() has the same functionality but better.
+  # that function also tallys for ENEMY, INCLUDE, EXCLUDE, ALLORNONE constraints,
+  # this function does not.
+
   if (!inherits(constraints, "constraints")) {
     stop("'constraints' must be a 'constraints' class object")
   }
 
-  set_based   <- constraints@set_based
-  item_attrib <- constraints@item_attrib
-  constraints <- constraints@constraints
+  group_by_stimulus <- constraints@set_based
+  item_attrib       <- constraints@item_attrib
+  constraints       <- constraints@constraints
 
   nc <- nrow(constraints)
   list_constraints <- vector(mode = "list", length = nc)
@@ -101,7 +106,7 @@ countConstraints <- function(constraints, item_idx) {
     }
   }
 
-  if (set_based) {
+  if (group_by_stimulus) {
     for (index in stim_constraints) {
       if (constraints[["TYPE"]][index] %in% c("NUMBER", "COUNT")) {
         tmp <- item_attrib@data[item_idx, ]

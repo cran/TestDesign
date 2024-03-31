@@ -3,7 +3,7 @@ NULL
 
 #' Calculate item response probabilities
 #'
-#' \code{\link{calcProb}} is a function to calculate item response probabilities.
+#' \code{\link{calcProb}} is a function for calculating item response probabilities.
 #'
 #' @param object an \code{\link{item}} or an \code{\linkS4class{item_pool}} object.
 #' @param theta theta values to use.
@@ -210,11 +210,13 @@ setMethod(
   f = "calcProb",
   signature = c("item_pool", "matrix"),
   definition = function(object, theta) {
-    if (nrow(theta) > 0 && all(!is.na(theta))) {
-      prob <- lapply(object@parms, calcProb, theta)
-    } else {
-      stop("'theta' is empty, or contains missing values.")
+    if (nrow(theta) == 0) {
+      stop("the 'theta' argument is empty; it must have at least one value.")
     }
+    if (any(is.na(theta))) {
+      stop("the 'theta' argument contains missing values; it must not have any.")
+    }
+    prob <- lapply(object@parms, calcProb, theta)
     return(prob)
   }
 )
@@ -225,11 +227,13 @@ setMethod(
   f = "calcProb",
   signature = c("item_pool_cluster", "numeric"),
   definition = function(object, theta) {
-    if (length(theta) > 0 && all(!is.na(theta))) {
-      prob <- lapply(object@pools, calcProb, theta)
-    } else {
-      stop("'theta' is empty, or contains missing values.")
+    if (length(theta) == 0) {
+      stop("the 'theta' argument is empty; it must have at least one value.")
     }
+    if (any(is.na(theta))) {
+      stop("the 'theta' argument contains missing values; it must not have any.")
+    }
+    prob <- lapply(object@pools, calcProb, theta)
     return(prob)
   }
 )

@@ -12,6 +12,7 @@ Split(
   n_partition,
   partition_type,
   partition_size_range = NULL,
+  n_maximum_partitions_per_item = 1,
   force_solver = FALSE
 )
 
@@ -21,6 +22,7 @@ Split(
   n_partition,
   partition_type,
   partition_size_range = NULL,
+  n_maximum_partitions_per_item = 1,
   force_solver = FALSE
 )
 }
@@ -37,13 +39,19 @@ Split(
 For discrete item pools, the default partition size is (pool size / number of partitions).
 For set-based item pools, the default partition size is (pool size / number of partitions) +/- smallest set size.}
 
+\item{n_maximum_partitions_per_item}{(optional) the number of times an item can be assigned to a partition.
+Setting this to 1 is equivalent to requiring all partitions to be mutually exclusive.
+A caveat is that when this is equal to \code{n_partition}, the assembled partitions will be identical to each other,
+because \code{\link{Split}} aims to minimize the test information difference between all partitions.
+(default = \code{1})}
+
 \item{force_solver}{if \code{TRUE}, do not check whether the solver is one of recommended solvers for complex problems (set-based assembly, partitioning). (default = \code{FALSE})}
 }
 \value{
-\code{\link{partition}} returns an \code{\linkS4class{output_Split}} object containing item/set indices of created tests/pools.
+\code{\link{Split}} returns an \code{\linkS4class{output_Split}} object containing item/set indices of created tests/pools.
 }
 \description{
-\code{\link{Split}} is a function to split a pool into multiple parallel tests or pools.
+\code{\link{Split}} is a function for splitting a pool into multiple parallel tests or pools.
 When constructing parallel tests, each test is constructed to satisfy all constraints.
 When constructing parallel pools, each pool is constructed so that it contains a test that satisfies all constraints.
 }
