@@ -57,7 +57,7 @@ ui <- fluidPage(
       h3(""),
 
       checkboxGroupButtons(
-        inputId = "maxinfo_button", justified = TRUE,
+        inputId = "obtainable_info_range_button", justified = TRUE,
         choices = c("Obtainable info range"), checkIcon = list(yes = icon("less-than-equal"), no = icon("less-than-equal"))
       ),
 
@@ -111,14 +111,14 @@ ui <- fluidPage(
 
       radioGroupButtons(
         inputId = "item_selection_method", justified = TRUE, label = h3("Item selection method"),
-        choices = c("MFI", "MPWI", "FB", "EB")
+        choices = c("MFI", "MPWI", "FB", "EB", "RANDOM")
       ),
 
       dropdownButton(
         inputId = "refresh_policy_dropdown", label = "Refresh policy",
         radioGroupButtons(
           inputId = "refresh_policy_method", justified = TRUE, direction = "vertical",
-          choices = c("ALWAYS", "POSITION", "INTERVAL", "THRESHOLD", "INTERVAL-THRESHOLD", "SET")
+          choices = c("ALWAYS", "NONE", "POSITION", "INTERVAL", "THRESHOLD", "INTERVAL-THRESHOLD", "SET")
         ),
         textInput("refresh_policy_threshold", label = h3("Refresh when theta change exceeds"), value = "0.1"),
         textInput("refresh_policy_position", label = h3("Refresh at item positions (comma-separated)"), value = "1, 10"),

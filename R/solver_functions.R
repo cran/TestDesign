@@ -5,14 +5,19 @@ NULL
 #'
 #' \code{\link{runAssembly}} is a function for performing test assembly. This function is used internally in \code{\link{Static}} and \code{\link{Shadow}}.
 #'
-#' @param config a \code{\linkS4class{config_Static}} or a \code{\linkS4class{config_Shadow}} object containing configuration options. Use \code{\link{createStaticTestConfig}} and \code{\link{createShadowTestConfig}} for this.
+#' @param config a \code{\linkS4class{config_Static}} or a \code{\linkS4class{config_Shadow}} object containing configuration options.
+#' Use \code{\link{createStaticTestConfig}} and \code{\link{createShadowTestConfig}} for this.
 #' @param constraints a \code{\linkS4class{constraints}} object. Use \code{\link{loadConstraints}} for this.
-#' @param xdata a list containing extra constraints in MIP form, to force-include previously administered items.
-#' @param objective the information value for each item in the pool.
+#' @param xdata a list containing extra constraints in MIP form,
+#' for various purposes such as including previously administered items,
+#' and excluding ineligible items.
+#' @param objective the objective coefficients used for decision variables.
+#' This is usually the information value for each item in the pool.
 #'
-#' @return a list containing the following entries:
+#' @return \code{\link{runAssembly}} returns a list containing the following entries:
 #' \itemize{
 #'   \item{\code{MIP}} a list containing the result from MIP solver.
+#'   \item{\code{solver}} the name of the MIP solver.
 #'   \item{\code{status}} the MIP status value, indicating whether an optimal solution was found.
 #'   \item{\code{shadow_test}} the attributes of the selected items.
 #'   \item{\code{obj_value}} the objective value of the solution.
@@ -20,6 +25,8 @@ NULL
 #' }
 #'
 #' @template mipbook-ref
+#'
+#' @keywords internal
 runAssembly <- function(config, constraints, xdata = NULL, objective = NULL) {
 
   ni    <- constraints@ni
@@ -28,7 +35,7 @@ runAssembly <- function(config, constraints, xdata = NULL, objective = NULL) {
   dir   <- constraints@dir
   rhs   <- constraints@rhs
 
-  solver        <- toupper(config@MIP$solver)
+  solver        <- config@MIP$solver
   verbosity     <- config@MIP$verbosity
   time_limit    <- config@MIP$time_limit
   gap_limit     <- config@MIP$gap_limit
@@ -153,7 +160,7 @@ runAssembly <- function(config, constraints, xdata = NULL, objective = NULL) {
     gap_limit_abs, gap_limit
   )
 
-  if (config@MIP$retry > 0 & !isOptimal(MIP$status, solver)) {
+  if (config@MIP$retry > 0 & !isSolutionOptimal(MIP$status, solver)) {
     # if errors, run again to check if it is indeed an error
     # some solvers error even when a solution exists
     n_retry <- 0
@@ -165,13 +172,13 @@ runAssembly <- function(config, constraints, xdata = NULL, objective = NULL) {
         verbosity, time_limit,
         gap_limit_abs, gap_limit
       )
-      if (isOptimal(MIP$status, solver) | n_retry == config@MIP$retry) {
+      if (isSolutionOptimal(MIP$status, solver) | n_retry == config@MIP$retry) {
         break
       }
     }
   }
 
-  if (!isOptimal(MIP$status, solver)) {
+  if (!isSolutionOptimal(MIP$status, solver)) {
     return(list(solver = solver, status = MIP$status, MIP = MIP, selected = NULL))
   }
 
@@ -258,9 +265,34 @@ runAssembly <- function(config, constraints, xdata = NULL, objective = NULL) {
 
 }
 
-#' @noRd
-runMIP <- function(solver, obj, mat, dir, rhs, maximize, types,
-                   verbosity, time_limit, gap_limit_abs, gap_limit) {
+#' (Internal) Run MIP solver
+#'
+#' \code{\link{runMIP}} is an internal function for
+#' running a MIP solver.
+#'
+#' @param solver the solver name.
+#' @param obj a length-\emph{nd} vector containing objective values.
+#' @param mat a (\emph{nc}, \emph{nd}) matrix containing left-hand side constraint coefficients.
+#' @param dir a length-\emph{nc} vector containing equality signs.
+#' @param rhs a length-\emph{nc} vector containing right-hand side values.
+#' @param maximize
+#' \code{TRUE} to maximize the objective function.
+#' \code{FALSE} to minimize the objective function.
+#' @param verbosity the verbosity level.
+#' @param time_limit the time limit.
+#' @param gap_limit_abs the gap limit in absolute metric.
+#' This determines the criteria the solver uses to declare that optimality is reached.
+#' @param gap_limit the gap limit in relative metric.
+#' This determines the criteria the solver uses to declare that optimality is reached.
+#'
+#' @returns \code{\link{runMIP}} returns solver output.
+#' This will have different structures depending on what solver is used.
+#'
+#' @keywords internal
+runMIP <- function(
+  solver, obj, mat, dir, rhs, maximize, types,
+  verbosity, time_limit, gap_limit_abs, gap_limit
+) {
 
   if (solver == "RSYMPHONY") {
 
@@ -281,7 +313,48 @@ runMIP <- function(solver, obj, mat, dir, rhs, maximize, types,
       )
     }
 
-  } else if (solver == "GUROBI") {
+    return(MIP)
+
+  }
+
+  if (solver == "HIGHS") {
+
+    lowerbounds <- obj * 0
+    upperbounds <- obj * 0
+    lowerbounds[types == "B"] <- 0
+    upperbounds[types == "B"] <- 1
+    lowerbounds[types == "C"] <- -Inf
+    upperbounds[types == "C"] <- Inf
+
+    types[types == "B"] <- "I"
+
+    # the "lhs", "rhs" arguments in the highs solver are
+    # just lower and upper bounds to be imposed on the objective function
+    # transform accordingly
+
+    lhs_new <- rhs
+    rhs_new <- rhs
+    lhs_new[dir == "<="] <- -Inf
+    rhs_new[dir == ">="] <- Inf
+
+    MIP <- highs::highs_solve(
+      L       = obj,
+      lower   = lowerbounds,
+      upper   = upperbounds,
+      A       = mat,
+      types   = types,
+      maximum = maximize,
+      lhs     = lhs_new,
+      rhs     = rhs_new
+    )
+
+    MIP$solution <- MIP$primal_solution
+
+    return(MIP)
+
+  }
+
+  if (solver == "GUROBI") {
 
     constraints_dir <- dir
     constraints_dir[constraints_dir == "=="] <- "="
@@ -303,69 +376,124 @@ runMIP <- function(solver, obj, mat, dir, rhs, maximize, types,
 
     MIP[["solution"]] <- MIP$x
 
-  } else if (solver == "LPSOLVE") {
+    return(MIP)
+
+  }
+
+  if (solver == "LPSOLVE") {
 
     binary_vec <- which(types == "B")
 
     MIP <- lpSolve::lp(direction = ifelse(maximize, "max", "min"), obj, mat, dir, rhs, binary.vec = binary_vec, presolve = TRUE)
 
-  } else if (solver == "RGLPK") {
+    return(MIP)
+
+  }
+
+  if (solver == "RGLPK") {
 
     MIP <- Rglpk::Rglpk_solve_LP(obj, mat, dir, rhs, max = maximize, types = types,
       control = list(verbose = ifelse(verbosity != -2, TRUE, FALSE), presolve = FALSE, tm_limit = time_limit * 1000))
 
-  }
+    return(MIP)
 
-  return(MIP)
+  }
 
 }
 
-#' @noRd
-isOptimal <- function(status, solver) {
+#' (Internal) Check whether solution is optimal
+#'
+#' \code{\link{isSolutionOptimal}} is an internal function for
+#' checking whether a solution is optimal.
+#'
+#' @param status status code returned by the solver function.
+#' @param solver solver name.
+#'
+#' @returns \code{\link{isSolutionOptimal}} returns \code{TRUE} or \code{FALSE}.
+#'
+#' @keywords internal
+isSolutionOptimal <- function(status, solver) {
+  # assume the 'solver' argument is already capitalized; toupper() is expensive!
+  # this is done only once at config generation
   is_optimal <- FALSE
-  if (toupper(solver) == "RSYMPHONY") {
+  if (solver == "RSYMPHONY") {
     is_optimal <- names(status) %in% c("TM_OPTIMAL_SOLUTION_FOUND", "PREP_OPTIMAL_SOLUTION_FOUND", "TM_TARGET_GAP_ACHIEVED")
-  } else if (toupper(solver) == "GUROBI") {
-    is_optimal <- status %in% c("OPTIMAL")
-  } else if (toupper(solver) == "LPSOLVE") {
-    is_optimal <- status == 0
-  } else if (toupper(solver) == "RGLPK") {
-    is_optimal <- status == 0
+    return(is_optimal)
   }
-  return(is_optimal)
+  if (solver == "HIGHS") {
+    is_optimal <- status == 7
+    return(is_optimal)
+  }
+  if (solver == "GUROBI") {
+    is_optimal <- status %in% c("OPTIMAL")
+    return(is_optimal)
+  }
+  if (solver == "LPSOLVE") {
+    is_optimal <- status == 0
+    return(is_optimal)
+  }
+  if (solver == "RGLPK") {
+    is_optimal <- status == 0
+    return(is_optimal)
+  }
 }
 
 #' @noRd
 getSolverStatusMessage <- function(status, solver) {
-  if (toupper(solver) == "RSYMPHONY") {
-    tmp <- sprintf("MIP solver returned non-zero status: %s", names(status))
-  } else if (toupper(solver) == "GUROBI") {
-    tmp <- sprintf("MIP solver returned non-zero status: %s", status)
-  } else if (toupper(solver) == "LPSOLVE") {
-    tmp <- sprintf("MIP solver returned non-zero status: %s", status)
-  } else if (toupper(solver) == "RGLPK") {
-    tmp <- sprintf("MIP solver returned non-zero status: %s", status)
+  # assume the 'solver' argument is already capitalized; toupper() is expensive!
+  # this is done only once at config generation
+  if (solver == "RSYMPHONY") {
+    msg <- sprintf("MIP solver returned non-zero status: %s", names(status))
+    return(msg)
   }
-  return(tmp)
+  if (solver == "HIGHS") {
+    msg <- sprintf("MIP solver returned non-zero status: %s", status)
+    return(msg)
+  }
+  if (solver == "GUROBI") {
+    msg <- sprintf("MIP solver returned non-zero status: %s", status)
+    return(msg)
+  }
+  if (solver == "LPSOLVE") {
+    msg <- sprintf("MIP solver returned non-zero status: %s", status)
+    return(msg)
+  }
+  if (solver == "RGLPK") {
+    msg <- sprintf("MIP solver returned non-zero status: %s", status)
+    return(msg)
+  }
 }
 
 #' @noRd
 printSolverNewline <- function(solver) {
-  if (toupper(solver) == "RSYMPHONY") {
+  # assume the 'solver' argument is already capitalized; toupper() is expensive!
+  # this is done only once at config generation
+  if (solver == "RSYMPHONY") {
     cat("\n")
   }
 }
 
-#' @noRd
+#' (Internal) Validate solver for interactive use
+#'
+#' \code{\link{validateSolver}} is an internal function for
+#' validating whether the solver is appropriate for the task.
+#'
+#' @param config a \code{\linkS4class{config_Shadow}} or a \code{\linkS4class{config_Static}} object.
+#' @template parameter_constraints
+#' @param purpose the purpose of the task. If \code{SPLIT} then extra checks are performed.
+#'
+#' @returns \code{\link{validateSolver}} returns \code{TRUE} or \code{FALSE}.
+#'
+#' @keywords internal
 validateSolver <- function(config, constraints, purpose = NULL) {
 
   if (constraints@set_based) {
-    if (!toupper(config@MIP$solver) %in%  c("RSYMPHONY", "GUROBI")) {
+    if (!config@MIP$solver %in% c("RSYMPHONY", "HIGHS", "GUROBI")) {
 
       if (!interactive()) {
         txt <- paste(
           sprintf("Set-based assembly with %s is not allowed in non-interactive mode", config@MIP$solver),
-          "(allowed solvers: RSYMPHONY, or GUROBI)",
+          "(allowed solvers: RSYMPHONY, HIGHS, or GUROBI)",
           sep = " "
         )
         warning(txt)
@@ -374,7 +502,7 @@ validateSolver <- function(config, constraints, purpose = NULL) {
 
       txt <- paste(
         sprintf("Set-based assembly with %s takes a long time.", config@MIP$solver),
-        "Recommended solvers: RSYMPHONY, or GUROBI",
+        "Recommended solvers: RSYMPHONY, HIGHS, or GUROBI",
         sep = "\n"
       )
 
@@ -394,12 +522,12 @@ validateSolver <- function(config, constraints, purpose = NULL) {
   }
 
   if (purpose == "SPLIT") {
-    if (!toupper(config@MIP$solver) %in%  c("RSYMPHONY", "GUROBI")) {
+    if (!config@MIP$solver %in% c("RSYMPHONY", "HIGHS", "GUROBI")) {
 
       if (!interactive()) {
         txt <- paste(
           sprintf("Split() with %s is not allowed in non-interactive mode", config@MIP$solver),
-          "(allowed solvers: RSYMPHONY, or GUROBI)",
+          "(allowed solvers: RSYMPHONY, HIGHS, or GUROBI)",
           sep = " "
         )
         warning(txt)
@@ -408,7 +536,7 @@ validateSolver <- function(config, constraints, purpose = NULL) {
 
       txt <- paste(
         sprintf("Split() with %s takes a long time.", config@MIP$solver),
-        "Recommended solvers: RSYMPHONY, or GUROBI",
+        "Recommended solvers: RSYMPHONY, HIGHS, or GUROBI",
         sep = "\n"
       )
 
@@ -429,7 +557,7 @@ validateSolver <- function(config, constraints, purpose = NULL) {
 
 #' Test solver
 #'
-#' @param solver a solver package name. Accepts \code{lpSolve, Rsymphony, gurobi, Rglpk}.
+#' @param solver a solver package name. Accepts \code{lpSolve, Rsymphony, highs, gurobi, Rglpk}.
 #'
 #' @return empty string \code{""} if solver works. A string containing error messages otherwise.
 #'
@@ -445,7 +573,7 @@ testSolver <- function(solver) {
     byrow = TRUE)
   dir   <- rep("==", 2)
   rhs   <- c(2, 0)
-  types <- "B"
+  types <- rep("B", 5)
 
   solver <- toupper(solver)
   o <- try(
@@ -482,7 +610,7 @@ testSolver <- function(solver) {
 #' @export
 detectBestSolver <- function() {
   solver_list <- c(
-    "gurobi", "Rsymphony", "lpSolve"
+    "gurobi", "Rsymphony", "highs", "lpSolve"
   )
   for (solver in solver_list) {
     is_solver_available <- suppressWarnings(requireNamespace(solver, quietly = TRUE))

@@ -1,7 +1,16 @@
 #' @include shadow_functions.R
 NULL
 
-#' @noRd
+#' (Internal) Bind matrices diagonally
+#'
+#' \code{\link{dbind}} is an internal function for binding matrices diagonally.
+#' This is used for constructing constraint matrix-data in \code{\link{Split}}.
+#'
+#' @param ... input matrices.
+#'
+#' @returns \code{\link{dbind}} returns a matrix.
+#'
+#' @keywords internal
 dbind <- function(...) {
 
   x <- list(...)
@@ -29,14 +38,36 @@ dbind <- function(...) {
 
 }
 
-#' @noRd
+#' (Internal) Make decision variables for selecting a pool
+#'
+#' \code{\link{getDecisionVariablesOfPoolForMultipool}} is an internal function for
+#' making decision variables for selecting a single pool, for the purpose of multiple-pool assembly.
+#'
+#' @param pool_idx the target pool index.
+#' @param ni_per_bin the number of items in the pool.
+#' @param nv_per_bin the number of decision variables in the pool if this was a regular ATA.
+#'
+#' @returns \code{\link{getDecisionVariablesOfPoolForMultipool}} returns a vector of indices.
+#'
+#' @keywords internal
 getDecisionVariablesOfPoolForMultipool <- function(pool_idx, ni_per_bin, nv_per_bin) {
   return(
     ((pool_idx - 1) * nv_per_bin) + 1:ni_per_bin
   )
 }
 
-#' @noRd
+#' (Internal) Make decision variables for selecting an item
+#'
+#' \code{\link{getDecisionVariablesOfItemForMultipool}} is an internal function for
+#' making decision variables for selecting a single item, for the purpose of multiple-pool assembly.
+#'
+#' @param item_idx the target item index.
+#' @param nv_per_bin the number of decision variables in the pool if this was a regular ATA.
+#' @param n_bins the number of pools being modeled.
+#'
+#' @returns \code{\link{getDecisionVariablesOfItemForMultipool}} returns a vector of indices.
+#'
+#' @keywords internal
 getDecisionVariablesOfItemForMultipool <- function(item_idx, nv_per_bin, n_bins) {
   nv_total <- nv_per_bin * n_bins
   return(
@@ -44,7 +75,21 @@ getDecisionVariablesOfItemForMultipool <- function(item_idx, nv_per_bin, n_bins)
   )
 }
 
-#' @noRd
+#' (Internal) Convert a partitioning problem solution to indices
+#'
+#' \code{\link{splitSolutionToBins}} is an internal function for converting a paritioning problem solution to indices.
+#'
+#' @param solution the solution vector from the solver.
+#' @param n_bins the number of bins (i.e., partitions)
+#' @param ni_per_bin the number of decision variables for items in each bin.
+#' This is the number of items in the pool.
+#' @param nv_per_bin the number of decision variables for items+sets in each bin.
+#' This is the number of items in the pool plus the number of sets.
+#' The deviation variable is not counted here.
+#'
+#' @returns \code{\link{splitSolutionToBins}} returns a partition-wise list containing item/set indices.
+#'
+#' @keywords internal
 splitSolutionToBins <- function(solution, n_bins, ni_per_bin, nv_per_bin) {
 
   o <- list()
@@ -76,8 +121,17 @@ splitSolutionToBins <- function(solution, n_bins, ni_per_bin, nv_per_bin) {
 
 }
 
-#' @noRd
-getSetStructureConstraints <- function(constraints) {
+#' (Internal) Make set-based strucutre constraints
+#'
+#' \code{\link{makeSetStructureConstraints}} is an internal function for
+#' making the left-hand side matrix of set-based structure constraints.
+#'
+#' @template parameter_constraints
+
+#' @returns \code{\link{makeSetStructureConstraints}} returns a matrix.
+#'
+#' @keywords internal
+makeSetStructureConstraints <- function(constraints) {
 
   ni <- constraints@ni
   ns <- constraints@ns
@@ -107,8 +161,8 @@ getSetStructureConstraints <- function(constraints) {
 #' When constructing parallel tests, each test is constructed to satisfy all constraints.
 #' When constructing parallel pools, each pool is constructed so that it contains a test that satisfies all constraints.
 #'
-#' @template config_Static-param
-#' @template constraints-param
+#' @template parameter_config_Static
+#' @template parameter_constraints
 #' @param n_partition the number of partitions to create.
 #' @param partition_type \code{test} to create tests, or \code{pool} to create pools.
 #' @param partition_size_range (optional) two integer values for the desired range for the size of a partition. Has no effect when \code{partition_type} is \code{test}.
@@ -159,6 +213,8 @@ setMethod(
     n_maximum_partitions_per_item = 1,
     force_solver = FALSE
   ) {
+
+    function_call <- match.call()
 
     if (!validObject(config)) {
       stop("'config' object is not valid.")
@@ -308,7 +364,7 @@ setMethod(
       gap_limit     = config@MIP$gap_limit
     )
 
-    if (!isOptimal(o1$status, config@MIP$solver)) {
+    if (!isSolutionOptimal(o1$status, config@MIP$solver)) {
       msg <- getSolverStatusMessage(o1$status, config@MIP$solver)
       stop(msg)
     }
@@ -316,10 +372,14 @@ setMethod(
     solve_time_stepone <- (proc.time() - solve_time_stepone)[["elapsed"]]
     solve_time[1] <- solve_time_stepone
     feasible[1] <- TRUE
+
+    o1$solution[types == "B"] <- round(o1$solution[types == "B"], 0)
+
     solution_per_bin <- splitSolutionToBins(o1$solution, n_bins, ni, nv)
 
     if (partition_type == "test") {
       o <- new("output_Split")
+      o@call                 <- function_call
       o@output               <- solution_per_bin
       o@feasible             <- feasible
       o@solve_time           <- solve_time
@@ -328,6 +388,7 @@ setMethod(
       o@constraints          <- constraints
       o@partition_size_range <- partition_size_range
       o@partition_type       <- partition_type
+      o@constraints_by_each_partition <- makeConstraintsByEachPartition(constraints, solution_per_bin)
       return(o)
     }
 
@@ -347,7 +408,11 @@ setMethod(
     if (!constraints@set_based & is.null(partition_size_range)) {
       bin_size <- ni / n_bins
       if (bin_size %% 1 != 0) {
-        stop(sprintf("unexpected resulting partition size '%s': this must result in an integer", bin_size))
+        stop(sprintf(
+          "unexpected partition size: item pool size '%s' divided by number of partitions '%s' is not an integer ('%s') (this must be an integer to be a valid partition size). If needed, use 'partition_size_range' argument to manually set partition sizes",
+          ni, n_bins,
+          bin_size
+        ))
       }
       bin_size_lb <- bin_size
       bin_size_ub <- bin_size
@@ -395,7 +460,7 @@ setMethod(
       rhs_ss <- numeric(0)
     }
     if (constraints@set_based) {
-      mat_ss <- getSetStructureConstraints(constraints)
+      mat_ss <- makeSetStructureConstraints(constraints)
       dir_ss <- rep("==", constraints@ns)
       rhs_ss <- rep(0   , constraints@ns)
       mat_list <- vector("list", n_bins)
@@ -441,10 +506,10 @@ setMethod(
       gap_limit     = config@MIP$gap_limit
     )
 
-    if (isOptimal(o2$status, config@MIP$solver)) {
+    if (isSolutionOptimal(o2$status, config@MIP$solver)) {
       feasible[2] <- TRUE
     }
-    if (!isOptimal(o2$status, config@MIP$solver)) {
+    if (!isSolutionOptimal(o2$status, config@MIP$solver)) {
       feasible[2] <- FALSE
       # retry using partial assignment (some items don't have to be assigned to a bin)
       mat <- rbind(mat_bpa_ub, mat_bs, mat_be, mat_ss, mat_i, mat_l)
@@ -463,7 +528,7 @@ setMethod(
         gap_limit_abs = config@MIP$gap_limit_abs,
         gap_limit     = config@MIP$gap_limit
       )
-      if (!isOptimal(o2$status, config@MIP$solver)) {
+      if (!isSolutionOptimal(o2$status, config@MIP$solver)) {
         msg <- getSolverStatusMessage(o2$status, config@MIP$solver)
         stop(msg)
       }
@@ -471,10 +536,14 @@ setMethod(
 
     solve_time_steptwo <- (proc.time() - solve_time_steptwo)[["elapsed"]]
     solve_time[2] <- solve_time_steptwo
+
+    o2$solution[types == "B"] <- round(o2$solution[types == "B"], 0)
+
     solution_per_bin <- splitSolutionToBins(o2$solution, n_bins, ni, nv)
 
     if (partition_type == "pool") {
       o <- new("output_Split")
+      o@call                 <- function_call
       o@output               <- solution_per_bin
       o@feasible             <- feasible
       o@solve_time           <- solve_time
@@ -483,8 +552,55 @@ setMethod(
       o@constraints          <- constraints
       o@partition_size_range <- partition_size_range
       o@partition_type       <- partition_type
+      o@constraints_by_each_partition <- makeConstraintsByEachPartition(constraints, solution_per_bin)
       return(o)
     }
 
   }
 )
+
+#' make constraints objects from Split() solution indices
+#'
+#' \code{\link{makeConstraintsByEachPartition}} is a helper function for making
+#' \code{\linkS4class{constraints}} objects from \code{\link{Split}} solution indices.
+#'
+#' @template parameter_constraints
+#' @param solution_per_bin a list containing item/stimulus indices for each partition.
+#' This accepts a list stored in the \code{output} slot of an \code{\linkS4class{output_Split}} object.
+#'
+#' @returns \code{\link{makeConstraintsByEachPartition}} returns a list of \code{\linkS4class{constraints}} objects.
+#'
+#' @export
+makeConstraintsByEachPartition <- function(constraints, solution_per_bin) {
+
+  o <- list()
+
+  for (idx_partition in names(solution_per_bin)) {
+
+    itempool_thisbin <- constraints@pool[solution_per_bin[[idx_partition]]$i]
+
+    itemattrib_thisbin <- constraints@item_attrib@data[solution_per_bin[[idx_partition]]$i, ]
+    itemattrib_thisbin$INDEX <- NULL
+    itemattrib_thisbin <- loadItemAttrib(itemattrib_thisbin, itempool_thisbin)
+
+    stimattrib_thisbin <- NULL
+    if ("s" %in% names(solution_per_bin[[idx_partition]])) {
+      stimattrib_thisbin <- constraints@st_attrib@data[solution_per_bin[[idx_partition]]$s, ]
+      stimattrib_thisbin$STINDEX <- NULL
+      stimattrib_thisbin <- loadStAttrib(stimattrib_thisbin, itemattrib_thisbin)
+    }
+
+    constraints_thisbin <- constraints@constraints
+    constraints_thisbin$CONSTRAINT <- NULL
+    constraints_thisbin <- loadConstraints(
+      constraints_thisbin,
+      itempool_thisbin,
+      itemattrib_thisbin,
+      stimattrib_thisbin
+    )
+    o[[idx_partition]] <- constraints_thisbin
+  }
+
+  return(o)
+
+}

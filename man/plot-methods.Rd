@@ -28,6 +28,7 @@
   simple = TRUE,
   theta_type = "Estimated",
   color_final = "blue",
+  color_stim = "red",
   segment = NULL,
   rmse = FALSE,
   use_segment_label = TRUE,
@@ -109,6 +110,7 @@
   simple = FALSE,
   theta_type = "Estimated",
   color_final = "blue",
+  color_stim = "red",
   segment = NULL,
   rmse = FALSE,
   use_segment_label = TRUE,
@@ -141,8 +143,8 @@
   \item{\code{\linkS4class{item_pool}}}: plot information and expected scores.
   \item{\code{\linkS4class{constraints}}}: plot information range based on the test length constraint.
   \item{\code{\linkS4class{output_Static}}}: plot information and expected scores based on the fixed assembly solution.
-  \item{\code{\linkS4class{output_Shadow_all}}}: plot audit trail, shadow test chart, and exposure rates from the adaptive assembly solution.
-  \item{\code{\linkS4class{output_Shadow}}}: plot audit trail and shadow test chart from the adaptive assembly solution.
+  \item{\code{\linkS4class{output_Shadow_all}}}: plot audit trail, shadowtest chart, exposure rates, and item overlap data from the adaptive assembly solution.
+  \item{\code{\linkS4class{output_Shadow}}}: plot audit trail and shadowtest chart from the adaptive assembly solution.
 }}
 
 \item{y}{not used, exists for compatibility with \code{\link[graphics]{plot}} in the base R package.}
@@ -152,8 +154,9 @@
    \item{\code{info} plots information from \code{\linkS4class{item_pool}}, \code{\linkS4class{output_Static}}, and \code{\linkS4class{output_Shadow_all}}.}
    \item{\code{score} plots expected scores from \code{\linkS4class{item_pool}} and \code{\linkS4class{output_Static}}.}
    \item{\code{audit} plots audit trail from \code{\linkS4class{output_Shadow_all}} and \code{\linkS4class{output_Shadow}}.}
-   \item{\code{shadow} plots shadow test chart from \code{\linkS4class{output_Shadow_all}} and \code{\linkS4class{output_Shadow}}.}
+   \item{\code{shadow} plots shadowtest chart from \code{\linkS4class{output_Shadow_all}} and \code{\linkS4class{output_Shadow}}.}
    \item{\code{exposure} plots exposure rates from \code{\linkS4class{output_Shadow_all}}.}
+   \item{\code{overlap} plots item overlap data from \code{\linkS4class{output_Shadow_all}}.}
 }}
 
 \item{theta}{the theta grid to use in plotting. (default = \code{seq(-3, 3, .1)})}
@@ -186,6 +189,8 @@
 \item{theta_type}{used in \code{\linkS4class{output_Shadow_all}} with \code{type = 'exposure'}. The type of theta to determine exposure segments. Accepts \code{Estimated} or \code{True}. (default = \code{Estimated})}
 
 \item{color_final}{used in \code{\linkS4class{output_Shadow_all}} with \code{type = 'exposure'}. The color of item-wise exposure rates, only counting the items administered in the final theta segment as exposed.}
+
+\item{color_stim}{used in \code{\linkS4class{output_Shadow_all}} with \code{type = 'exposure'} or \code{type = 'overlap'}. The color of stimulus exposure rates or stimulus overlap data.}
 
 \item{segment}{used in \code{\linkS4class{output_Shadow_all}} with \code{type = 'exposure'}. (optional) The segment index to draw the plot. Leave empty to use all segments.}
 
@@ -229,5 +234,6 @@ plot(solution, type = 'audit' , examinee_id = 1)
 plot(solution, type = 'shadow', examinee_id = 1, simple = TRUE)
 
 ## plot(solution, type = 'exposure')
+## plot(solution, type = 'overlap')
 
 }

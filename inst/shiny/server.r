@@ -2,7 +2,7 @@ server <- function(input, output, session) {
   v <- reactiveValues(
     itempool_exists = FALSE,
     itemse_exists = FALSE,
-    const_exists = FALSE,
+    constraints_exists = FALSE,
     itemtext_exists = FALSE,
     stimattrib_exists = FALSE,
     problemtype = 0,
@@ -110,8 +110,8 @@ server <- function(input, output, session) {
           "shiny_constraints_data",
           "Constraints (raw data.frame)")
 
-        if (isolate(v$constraints@set_based & !input$solvertype %in% c("Rsymphony", "gurobi"))) {
-          v <- updateLogs(v, "Warning: set-based assembly requires 'Rsymphony' or 'gurobi'.")
+        if (isolate(v$constraints@set_based & !input$solvertype %in% c("Rsymphony", "highs", "gurobi"))) {
+          v <- updateLogs(v, "Warning: set-based assembly requires 'Rsymphony', 'highs' or 'gurobi'.")
         }
 
       } else {
@@ -171,7 +171,7 @@ server <- function(input, output, session) {
     shinyjs::toggle("objtype",                        condition = input$problemtype == 1)
     shinyjs::toggle("item_selection_target_location", condition = input$problemtype == 1)
     shinyjs::toggle("item_selection_target_value",    condition = input$problemtype == 1)
-    shinyjs::toggle("maxinfo_button",                 condition = input$problemtype == 1)
+    shinyjs::toggle("obtainable_info_range_button",   condition = input$problemtype == 1)
     shinyjs::toggle("exposure_dropdown",              condition = input$problemtype == 2)
     shinyjs::toggle("theta_settings",                 condition = input$problemtype == 2)
     shinyjs::toggle("item_selection_method",          condition = input$problemtype == 2)
@@ -214,7 +214,7 @@ server <- function(input, output, session) {
         if (input$simulee_id != "") {
           v <- updateLogs(v, sprintf("Created plots for simulee %i", v$simulee_id))
 
-          plot(v$fit, v$simulee_id, type = "audit")
+          plot(v$fit, examinee_id = v$simulee_id, type = "audit")
           p <- recordPlot()
           dev.off()
 
@@ -224,7 +224,7 @@ server <- function(input, output, session) {
             sprintf("Audit trail plot for simulee %i", v$simulee_id)
           )
 
-          plot(v$fit, v$simulee_id, type = "shadow", simple = TRUE)
+          plot(v$fit, examinee_id = v$simulee_id, type = "shadow", simple = TRUE)
           p <- recordPlot()
           dev.off()
 
@@ -238,7 +238,11 @@ server <- function(input, output, session) {
     }
   })
 
-  observeEvent(input$maxinfo_button, {
+  observeEvent(input$obtainable_info_range_button, {
+
+    if (!(v$itempool_exists & v$constraints_exists)) {
+      v <- updateLogs(v, "Cannot generate info range plot; item pool and constraints must be loaded.")
+    }
     if (v$itempool_exists & v$constraints_exists) {
 
       plot(v$constraints)
@@ -256,7 +260,7 @@ server <- function(input, output, session) {
     }
     updateCheckboxGroupButtons(
       session = session,
-      inputId = "maxinfo_button",
+      inputId = "obtainable_info_range_button",
       selected = character(0)
     )
   })

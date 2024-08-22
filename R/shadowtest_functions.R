@@ -1,13 +1,23 @@
 #' @include shadow_functions.R
 NULL
 
-#' @noRd
-parseShadowTestRefreshSchedule <- function(constants, refresh_policy) {
+#' (Internal) Parse shadowtest refresh schedule
+#'
+#' \code{\link{parseShadowTestRefreshSchedule}} is an internal function for
+#' parsing shadowtest refresh schedule from supplied config.
+#'
+#' @template parameter_simulation_constants
+#' @param refresh_policy the \code{refresh_policy} slot from a \code{\linkS4class{config_Shadow}} object.
+#'
+#' @returns \code{\link{parseShadowTestRefreshSchedule}} returns a named list.
+#'
+#' @keywords internal
+parseShadowTestRefreshSchedule <- function(simulation_constants, refresh_policy) {
 
   refresh_method   <- toupper(refresh_policy$method)
   refresh_position <- refresh_policy$position
   refresh_interval <- refresh_policy$interval
-  test_length      <- constants$test_length
+  test_length      <- simulation_constants$test_length
 
   o <- list()
   o$dynamic       <- FALSE
@@ -15,10 +25,12 @@ parseShadowTestRefreshSchedule <- function(constants, refresh_policy) {
   o$use_setbased  <- FALSE
   o$schedule <- rep(FALSE, test_length)
 
-  o$schedule[1] <- TRUE
-
   if (refresh_method %in% c("ALWAYS")) {
     o$schedule[1:test_length] <- TRUE
+  }
+  if (refresh_method %in% c("NONE")) {
+    o$schedule[1] <- TRUE
+    # equivalent to "POSITION" with 'refresh_position' set to 1
   }
   if (refresh_method %in% c("THRESHOLD")) {
     o$dynamic       <- TRUE
@@ -49,7 +61,7 @@ parseShadowTestRefreshSchedule <- function(constants, refresh_policy) {
     o$schedule[seq(1, test_length, refresh_interval)] <- TRUE
   }
   if (refresh_method %in% c("STIMULUS", "SET", "PASSAGE")) {
-    if (!constants$group_by_stimulus) {
+    if (!simulation_constants$group_by_stimulus) {
       stop(sprintf("config@refresh_policy: stimulus-based constraint is required for $method '%s'", refresh_method))
     }
     o$dynamic      <- TRUE
@@ -61,45 +73,82 @@ parseShadowTestRefreshSchedule <- function(constants, refresh_policy) {
 
 }
 
-#' @noRd
+#' (Internal) Assemble a shadowtest
+#'
+#' @param j the examinee index.
+#' @template parameter_position
+#' @param o \code{\linkS4class{output_Shadow}} object.
+#' @template parameter_eligibility_flag
+#' @param exclude_flag a list of item/stimulus indices to exclude from selection for the examinee.
+#' @param usage_flag a vector of length \emph{ni} (or \emph{ni + ns}) containing the number of times each item has been administered previously to the examinee.
+#' @template parameter_groupings_record
+#' @param info a vector containing item information of each item in the pool.
+#' @template parameter_config_Shadow
+#' @template parameter_simulation_constants
+#' @template parameter_constraints
+#'
+#' @returns a named list containing a shadowtest and related data.
+#' \itemize{
+#'   \item{\code{shadow_test}} a \code{\link{data.frame}} containing the shadowtest.
+#'   \item{\code{feasible} whether the assembly was feasible the first time.}
+#' }
+#'
+#' @keywords internal
 assembleShadowTest <- function(
   j, position, o,
   eligibility_flag,
-  exclude_index,
+  exclude_flag,
+  usage_flag,
   groupings_record,
   info,
   config,
-  constants,
+  simulation_constants,
   constraints
 ) {
 
   administered_stimulus_index <- na.omit(unique(o@administered_stimulus_index))
 
-  xdata         <- getXdataOfAdministered(constants, position, o, groupings_record, constraints)
-  if (constants$exclude_method == "HARD") {
-    xdata_exclude <- getXdataOfExcludedEntry(constants, exclude_index[[j]])
+  xdata <- getXdataOfAdministered(simulation_constants, position, o, groupings_record, constraints)
+  if (simulation_constants$exclude_method == "HARD") {
+    xdata_exclude <- getXdataOfExcludedEntry(simulation_constants, exclude_flag)
     xdata         <- combineXdata(xdata, xdata_exclude)
   }
-  if (constants$exclude_method == "SOFT") {
-    info <- getInfoOfExcludedEntry(info, exclude_index[[j]], constants)
+  if (simulation_constants$exclude_method == "SOFT") {
+    info <- getInfoOfExcludedEntry(info, exclude_flag, simulation_constants)
   }
 
-  if (constants$use_exposure_control) {
+  if (
+    simulation_constants$use_overlap_control &&
+    simulation_constants$overlap_control_method %in% c("BIGM", "BIGM-BAYESIAN")
+  ) {
 
-    # Get eligible items in the current theta segment
-    current_segment <- o@theta_segment_index[position]
-    eligibility_flag_in_current_theta_segment <- getEligibilityFlagInSegment(eligibility_flag, current_segment, constants)
-    eligibility_flag_in_current_theta_segment <- flagAdministeredAsEligible(eligibility_flag_in_current_theta_segment, o, position, constants)
+    # Do Big-M based overlap control: penalize item info
+    info <- applyOverlapConstraintsToInfo(
+      info, usage_flag, config, simulation_constants
+    )
 
   }
 
-  if (constants$use_exposure_control && constants$exposure_control_method %in% c("ELIGIBILITY")) {
+  if (!simulation_constants$use_exposure_control) {
 
-    xdata_elg  <- applyEligibilityConstraintsToXdata(xdata, eligibility_flag_in_current_theta_segment, constants, constraints)
+    shadowtest <- runAssembly(config, constraints, xdata = xdata, objective = info)
+    shadowtest$feasible <- TRUE
+    return(shadowtest)
+
+  }
+
+  # Get eligible items in the current theta segment
+  current_segment <- o@theta_segment_index[position]
+  eligibility_flag_in_current_theta_segment <- getEligibilityFlagInSegment(eligibility_flag, current_segment, simulation_constants)
+  eligibility_flag_in_current_theta_segment <- flagAdministeredAsEligible(eligibility_flag_in_current_theta_segment, o, position, simulation_constants)
+
+  if (simulation_constants$exposure_control_method %in% c("ELIGIBILITY")) {
+
+    xdata_elg  <- applyEligibilityConstraintsToXdata(xdata, eligibility_flag_in_current_theta_segment, simulation_constants, constraints)
     shadowtest <- runAssembly(config, constraints, xdata = xdata_elg, objective = info)
-    is_optimal <- isShadowTestOptimal(shadowtest)
+    solution_is_optimal <- isSolutionOptimal(shadowtest$status, shadowtest$solver)
 
-    if (is_optimal) {
+    if (solution_is_optimal) {
       shadowtest$feasible <- TRUE
       return(shadowtest)
     }
@@ -111,43 +160,43 @@ assembleShadowTest <- function(
 
   }
 
-  if (constants$use_exposure_control && constants$exposure_control_method %in% c("BIGM", "BIGM-BAYESIAN")) {
+  if (simulation_constants$exposure_control_method %in% c("BIGM", "BIGM-BAYESIAN")) {
 
     # Do Big-M based exposure control: penalize item info
     info <- applyEligibilityConstraintsToInfo(
-      info, eligibility_flag_in_current_theta_segment, config, constants
+      info, eligibility_flag_in_current_theta_segment, config, simulation_constants
     )
 
-    shadowtest <- runAssembly(config, constraints, xdata = xdata, objective = info)
-    shadowtest$feasible <- TRUE
-    return(shadowtest)
-
   }
 
-  if (!constants$use_exposure_control) {
-
-    shadowtest <- runAssembly(config, constraints, xdata = xdata, objective = info)
-    shadowtest$feasible <- TRUE
-    return(shadowtest)
-
-  }
+  shadowtest <- runAssembly(config, constraints, xdata = xdata, objective = info)
+  shadowtest$feasible <- TRUE
+  return(shadowtest)
 
 }
 
-#' @noRd
-isShadowTestOptimal <- function(shadowtest) {
-  return(isOptimal(shadowtest$status, shadowtest$solver))
-}
-
-#' @noRd
-selectItemFromShadowTest <- function(shadow_test, position, constants, x, previous_selection) {
+#' (Internal) Select item from a shadowtest
+#'
+#' @param shadow_test a \code{\link{data.frame}} containing a shadowtest.
+#' @template parameter_position
+#' @template parameter_simulation_constants
+#' @param x a \code{\linkS4class{output_Shadow}} object.
+#' @param previous_selection a named list containing item selection from previous position.
+#'
+#' @returns a named list containing data on the selected item.
+#'
+#' @keywords internal
+selectItemFromShadowTest <- function(
+  shadow_test, position,
+  simulation_constants, x, previous_selection
+) {
 
   o <- list()
 
   # filter out administered items ----------------------------------------------
   shadow_test <- subset(shadow_test, !(shadow_test$INDEX %in% x@administered_item_index))
 
-  if (constants$group_by_stimulus) {
+  if (simulation_constants$group_by_stimulus) {
 
     # if set-based and we just completed a set, select a new set ---------------
     # this is also triggered at the start of test
@@ -163,7 +212,7 @@ selectItemFromShadowTest <- function(shadow_test, position, constants, x, previo
   }
 
   # filter to current set ------------------------------------------------------
-  if (constants$group_by_stimulus) {
+  if (simulation_constants$group_by_stimulus) {
 
     if (!is.na(current_stimulus_index)) {
 
@@ -200,11 +249,11 @@ selectItemFromShadowTest <- function(shadow_test, position, constants, x, previo
   # select item
   o$item_selected <- shadow_test$INDEX[1]
 
-  if (constants$group_by_stimulus) {
+  if (simulation_constants$group_by_stimulus) {
     o$stimulus_selected <- shadow_test$STINDEX[1]
   }
 
-  if (constants$group_by_stimulus) {
+  if (simulation_constants$group_by_stimulus) {
 
     # this is used to trigger a shadowtest refresh
     o$is_last_item_in_this_set <- nrow(shadow_test) == 1
@@ -222,18 +271,33 @@ selectItemFromShadowTest <- function(shadow_test, position, constants, x, previo
 
 }
 
-#' @noRd
-shouldShadowTestBeRefreshed <- function(x, position, theta_change, previous_selection) {
+#' (Internal) Determine whether shadowtest should be refreshed
+#'
+#' \code{\link{shouldShadowTestBeRefreshed}} is an internal function for
+#' deciding whether a new shadowtest should be assembled.
+#'
+#' @param shadowtest_refresh_schedule refresh schedule.
+#' @param position the position within the current administration (i.e., test progress)
+#' @param theta_change the change in interim theta.
+#' @param previous_selection a named list containing data on what item was selected previously.
+#'
+#' @returns \code{\link{shouldShadowTestBeRefreshed}} returns a \code{TRUE} or \code{FALSE} value.
+#'
+#' @keywords internal
+shouldShadowTestBeRefreshed <- function(
+  shadowtest_refresh_schedule,
+  position, theta_change, previous_selection
+) {
 
-  scheduled_value <- x$schedule[position]
+  scheduled_value <- shadowtest_refresh_schedule$schedule[position]
 
-  if (!x$dynamic) {
+  if (!shadowtest_refresh_schedule$dynamic) {
     return(scheduled_value)
   }
 
-  if (x$dynamic) {
-    if (x$use_threshold) {
-      if (abs(theta_change) > x$threshold) {
+  if (shadowtest_refresh_schedule$dynamic) {
+    if (shadowtest_refresh_schedule$use_threshold) {
+      if (abs(theta_change) > shadowtest_refresh_schedule$threshold) {
         # for THRESHOLD method, if threshold is exceeded, then this always returns true
         # for INTERVAL-THRESHOLD method, if threshold is exceeded, then this returns scheduled value
         # - (equivalent to & operation)
@@ -242,7 +306,7 @@ shouldShadowTestBeRefreshed <- function(x, position, theta_change, previous_sele
         return(FALSE)
       }
     }
-    if (x$use_setbased) {
+    if (shadowtest_refresh_schedule$use_setbased) {
       if (previous_selection$is_last_item_in_this_set) {
         return(TRUE)
       } else {
@@ -255,7 +319,17 @@ shouldShadowTestBeRefreshed <- function(x, position, theta_change, previous_sele
 
 }
 
-#' @noRd
+#' (Internal) Update groupings record for stimulus
+#'
+#' @template parameter_groupings_record
+#' @param selection a named list containing data on selected item.
+#' @param o a \code{\linkS4class{output_Shadow}} object.
+#' @template parameter_position
+#'
+#' @returns \code{\link{updateCompletedGroupingsRecordForStimulus}} returns
+#' an updated groupings record.
+#'
+#' @keywords internal
 updateCompletedGroupingsRecordForStimulus <- function(
   groupings_record,
   selection,
@@ -271,7 +345,7 @@ updateCompletedGroupingsRecordForStimulus <- function(
     }
 
     # record the number of items from this set
-    # so that the next shadow test can take account for it
+    # so that the next shadowtest can take account for it
 
     groupings_record$completed_stimulus_index <- c(
       groupings_record$completed_stimulus_index,
@@ -329,7 +403,15 @@ updateCompletedGroupingsRecordForStimulus <- function(
 
 }
 
-#' @noRd
+#' (Internal) Append mean information to shadowtest
+#'
+#' @param shadow_test a \code{\link{data.frame}} containing a shadowtest.
+#' @param v the column name to use as grouping variable.
+#' @param mean_info_name the column name to use for appending mean information.
+#'
+#' @returns \code{\link{appendMeanInfo}} returns an updated shadowtest.
+#'
+#' @keywords internal
 appendMeanInfo <- function(shadow_test, v, mean_info_name) {
 
   mean_info <- tapply(shadow_test$info, shadow_test[v], mean)

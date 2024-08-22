@@ -1,7 +1,33 @@
 #' @include shadow_functions.R
 NULL
 
-#' @noRd
+#' (Internal) Estimate interim theta
+#'
+#' \code{\link{estimateInterimTheta}} is an internal function for
+#' estimating interim theta.
+#'
+#' @template parameter_output_Shadow
+#' @param j the numeric index of the examinee.
+#' @template parameter_position
+#' @param augmented_current_theta current theta estimate, based on any extra items supplied to the simulation.
+#' @param augmented_item_pool the \code{\linkS4class{item_pool}} object, also including any extra items supplied to the simulation.
+#' @template parameter_model_code
+#' @param augmented_item_index item indices of items administered to this examinee, also including any extra items supplied to the simulation.
+#' @param augmented_item_resp responses for items administered to this examinee, also including any extra items supplied to the simulation.
+#' @param include_items_for_estimation an examinee-wise list containing:
+#' \itemize{
+#'   \item{\code{administered_item_pool}} items to include in theta estimation as \code{\linkS4class{item_pool}} object.
+#'   \item{\code{administered_item_resp}} item responses to include in theta estimation.
+#' }
+#' @param item_parameter_sample a list containing numerical samples of item parameters that reflect item parameter estimation uncertainty.
+#' The output of \code{\link{iparPosteriorSample}} goes here.
+#' @template parameter_config_Shadow
+#' @template parameter_simulation_constants
+#' @template parameter_bayesian_constants
+#'
+#' @returns \code{\link{estimateInterimTheta}} returns an updated \code{\linkS4class{output_Shadow}} object.
+#'
+#' @keywords internal
 estimateInterimTheta <- function(
   o, j, position,
   augmented_current_theta,
@@ -11,13 +37,13 @@ estimateInterimTheta <- function(
   include_items_for_estimation,
   item_parameter_sample, # only used for FB
   config,
-  constants,
+  simulation_constants,
   bayesian_constants
 ) {
 
-  if (constants$use_hand_scored) {
+  if (simulation_constants$use_hand_scored) {
     if (
-      constants$item_is_hand_scored[o@administered_item_index[position]] &
+      simulation_constants$item_is_hand_scored[o@administered_item_index[position]] &
       position > 1
     ) {
       # skip update and reuse previous interim theta estimate
@@ -26,7 +52,7 @@ estimateInterimTheta <- function(
       return(o)
     }
     if (
-      constants$item_is_hand_scored[o@administered_item_index[position]] &
+      simulation_constants$item_is_hand_scored[o@administered_item_index[position]] &
       position == 1
     ) {
       # skip update and reuse previous interim theta estimate (starting theta)
@@ -36,9 +62,24 @@ estimateInterimTheta <- function(
     }
   }
 
+  if (toupper(config@interim_theta$method) == "CARRYOVER") {
+
+    if (position == 1) {
+      o@interim_theta_est[position, ] <- o@initial_theta_est$theta
+      o@interim_se_est[position, ]    <- o@initial_theta_est$se
+      return(o)
+    }
+    if (position > 1) {
+      o@interim_theta_est[position, ] <- o@interim_theta_est[position - 1, ]
+      o@interim_se_est[position, ]    <- o@interim_se_est[position - 1, ]
+      return(o)
+    }
+
+  }
+
   if (toupper(config@interim_theta$method) == "EAP") {
 
-    interim_EAP <- computeEAPFromPosterior(augmented_current_theta$posterior, constants$theta_q)
+    interim_EAP <- computeEAPFromPosterior(augmented_current_theta$posterior, simulation_constants$theta_q)
     interim_EAP <- applyShrinkageCorrection(interim_EAP, config@interim_theta, j)
     o@interim_theta_est[position, ] <- interim_EAP$theta
     o@interim_se_est[position, ]    <- interim_EAP$se
@@ -49,7 +90,7 @@ estimateInterimTheta <- function(
 
   if (toupper(config@interim_theta$method) == "MLE") {
 
-    interim_EAP <- computeEAPFromPosterior(augmented_current_theta$posterior, constants$theta_q)
+    interim_EAP <- computeEAPFromPosterior(augmented_current_theta$posterior, simulation_constants$theta_q)
     interim_MLE <- mle(augmented_item_pool,
       select        = augmented_item_index,
       resp          = augmented_item_resp,
@@ -73,7 +114,7 @@ estimateInterimTheta <- function(
 
   if (toupper(config@interim_theta$method) == "MLEF") {
 
-    interim_EAP <- computeEAPFromPosterior(augmented_current_theta$posterior, constants$theta_q)
+    interim_EAP <- computeEAPFromPosterior(augmented_current_theta$posterior, simulation_constants$theta_q)
     interim_MLEF <- mlef(augmented_item_pool,
       select           = augmented_item_index,
       resp             = augmented_item_resp,
@@ -162,7 +203,32 @@ estimateInterimTheta <- function(
 
 }
 
-#' @noRd
+#' (Internal) Estimate final theta
+#'
+#' \code{\link{estimateFinalTheta}} is an internal function for
+#' estimating final theta.
+#'
+#' @template parameter_output_Shadow
+#' @param j the numeric index of the examinee.
+#' @template parameter_position
+#' @param augmented_item_pool the \code{\linkS4class{item_pool}} object, also including any extra items supplied to the simulation.
+#' @template parameter_model_code
+#' @param augmented_item_index item indices of items administered to this examinee, also including any extra items supplied to the simulation.
+#' @param augmented_item_resp responses for items administered to this examinee, also including any extra items supplied to the simulation.
+#' @param include_items_for_estimation an examinee-wise list containing:
+#' \itemize{
+#'   \item{\code{administered_item_pool}} items to include in theta estimation as \code{\linkS4class{item_pool}} object.
+#'   \item{\code{administered_item_resp}} item responses to include in theta estimation.
+#' }
+#' @param item_parameter_sample a list containing numerical samples of item parameters that reflect item parameter estimation uncertainty.
+#' The output of \code{\link{iparPosteriorSample}} goes here.
+#' @template parameter_config_Shadow
+#' @template parameter_simulation_constants
+#' @template parameter_bayesian_constants
+#'
+#' @returns \code{\link{estimateFinalTheta}} returns an updated \code{\linkS4class{output_Shadow}} object.
+#'
+#' @keywords internal
 estimateFinalTheta <- function(
   o, j, position,
   augmented_item_pool,
@@ -172,7 +238,7 @@ estimateFinalTheta <- function(
   include_items_for_estimation,
   item_parameter_sample, # only used for FB
   config,
-  constants,
+  simulation_constants,
   bayesian_constants
 ) {
 
@@ -187,10 +253,18 @@ estimateFinalTheta <- function(
 
   }
 
+  if (toupper(config@final_theta$method) == "CARRYOVER") {
+
+    o@final_theta_est <- o@interim_theta_est[simulation_constants$max_ni, ]
+    o@final_se_est    <- o@interim_se_est[simulation_constants$max_ni, ]
+    return(o)
+
+  }
+
   if (toupper(config@final_theta$method == "EAP")) {
 
     o@posterior       <- o@likelihood * bayesian_constants$final_theta_prior_densities[j, ]
-    final_EAP <- computeEAPFromPosterior(o@posterior, constants$theta_q)
+    final_EAP <- computeEAPFromPosterior(o@posterior, simulation_constants$theta_q)
     final_EAP <- applyShrinkageCorrection(final_EAP, config@final_theta, j)
     o@final_theta_est <- final_EAP$theta
     o@final_se_est    <- final_EAP$se
@@ -205,7 +279,7 @@ estimateFinalTheta <- function(
       augmented_item_pool,
       select        = augmented_item_index,
       resp          = augmented_item_resp,
-      start_theta   = o@interim_theta_est[constants$max_ni, ],
+      start_theta   = o@interim_theta_est[simulation_constants$max_ni, ],
       max_iter      = config@final_theta$max_iter,
       crit          = config@final_theta$crit,
       theta_range   = config@final_theta$bound_ML,
@@ -231,7 +305,7 @@ estimateFinalTheta <- function(
       resp          = augmented_item_resp,
       fence_slope      = config@final_theta$fence_slope,
       fence_difficulty = config@final_theta$fence_difficulty,
-      start_theta      = o@interim_theta_est[constants$max_ni, ],
+      start_theta      = o@interim_theta_est[simulation_constants$max_ni, ],
       max_iter         = config@final_theta$max_iter,
       crit             = config@final_theta$crit,
       theta_range      = config@final_theta$bound_ML,
@@ -1032,28 +1106,31 @@ setMethod(
 )
 
 #' @noRd
-parseInitialTheta <- function(config, constants, item_pool, bayesian_constants, include_items_for_estimation) {
+parseInitialTheta <- function(
+  config, simulation_constants,
+  item_pool, bayesian_constants, include_items_for_estimation
+) {
 
   o <- list()
 
-  o$likelihood <- matrix(1, constants$nj, constants$nq)
+  o$likelihood <- matrix(1, simulation_constants$nj, simulation_constants$nq)
 
   o$posterior <- generateDensityFromPriorPar(
     config@interim_theta,
-    constants$theta_q
+    simulation_constants$theta_q
   )
 
-  o$theta_q <- constants$theta_q
+  o$theta_q <- simulation_constants$theta_q
 
   # update likelihood and posterior using include_items_for_estimation
 
   if (!is.null(include_items_for_estimation)) {
 
-    for (j in 1:constants$nj) {
+    for (j in 1:simulation_constants$nj) {
 
       prob_matrix_supplied_items <- calcProb(
         include_items_for_estimation[[j]]$administered_item_pool,
-        constants$theta_q
+        simulation_constants$theta_q
       )
 
       n_supplied_items <- include_items_for_estimation[[j]]$administered_item_pool@ni
@@ -1081,17 +1158,19 @@ parseInitialTheta <- function(config, constants, item_pool, bayesian_constants, 
       config_value <- matrix(config_value, , 1)
     }
     if (nrow(config_value) == 1) {
-      o$theta <- matrix(config_value, constants$nj, ncol(config_value), byrow = TRUE)
+      o$theta <- matrix(config_value, simulation_constants$nj, ncol(config_value), byrow = TRUE)
+      o$se <- o$theta * NA
     }
-    if (nrow(config_value) == constants$nj) {
+    if (nrow(config_value) == simulation_constants$nj) {
       o$theta <- config_value
+      o$se <- o$theta * NA
     }
   }
   if (is.null(config_value)) {
-    o$theta <- (o$posterior %*% constants$theta_q) / apply(o$posterior, 1, sum)
+    o$theta <- (o$posterior %*% simulation_constants$theta_q) / apply(o$posterior, 1, sum)
     o$se <- o$theta * 0
-    for (j in 1:constants$nj) {
-      o$se[j, ] <- sqrt(sum(o$posterior[j, ] * (constants$theta_q - o$theta[j, ]) ** 2) / sum(o$posterior[j, ]))
+    for (j in 1:simulation_constants$nj) {
+      o$se[j, ] <- sqrt(sum(o$posterior[j, ] * (simulation_constants$theta_q - o$theta[j, ]) ** 2) / sum(o$posterior[j, ]))
     }
   }
 
@@ -1128,7 +1207,7 @@ parseInitialThetaOfThisExaminee <- function(config_theta, initial_theta, j, baye
   o$posterior  <- initial_theta$posterior[j, ]
   o$theta_q    <- initial_theta$theta_q
 
-  if (theta_method %in% c("EAP", "MLE", "MLEF")) {
+  if (theta_method %in% c("EAP", "MLE", "MLEF", "CARRYOVER")) {
     o$theta <- initial_theta$theta[j, ]
     o$se    <- initial_theta$se[j, ]
   }
@@ -1143,43 +1222,86 @@ parseInitialThetaOfThisExaminee <- function(config_theta, initial_theta, j, baye
 
 }
 
-#' @noRd
-parseThetaSegment <- function(current_theta, position, exposure_control, constants) {
+#' (Internal) Determine the current theta segment
+#'
+#' \code{\link{determineCurrentThetaSegment}} is an internal function for
+#' determining the current theta segment.
+#'
+#' @param current_theta a list containing data on the current theta estimate.
+#' @param position the position within the current administration (i.e., test progress)
+#' @param exposure_control the \code{exposure_control} slot of \code{\linkS4class{config_Shadow}}.
+#' Used to read custom first segments if available.
+#' @template parameter_simulation_constants
+#'
+#' @returns \code{\link{determineCurrentThetaSegment}} returns a segment index.
+#'
+#' @keywords internal
+determineCurrentThetaSegment <- function(
+  current_theta, position,
+  exposure_control, simulation_constants
+) {
 
-  n_segment   <- constants$n_segment
-  segment_cut <- constants$segment_cut
+  n_segment   <- simulation_constants$n_segment
+  segment_cut <- simulation_constants$segment_cut
 
-  if (isFirstSegmentValid(exposure_control$first_segment, n_segment, position)) {
+  if (isCustomFirstSegmentAvailable(
+    simulation_constants$custom_first_segment_available,
+    simulation_constants$custom_first_segment_n_values,
+    position
+  )) {
     segment <- exposure_control$first_segment[position]
     return(segment)
   }
 
-  if (constants$exposure_control_method %in% c("NONE", "ELIGIBILITY", "BIGM")) {
+  if (simulation_constants$exposure_control_method %in% c("NONE", "ELIGIBILITY", "BIGM")) {
     # find_segment() needs to be updated for multidimensional segments
     segment <- find_segment(current_theta$theta, segment_cut)
     return(segment)
   }
 
-  if (constants$exposure_control_method %in% c("BIGM-BAYESIAN")) {
-    segment_prob <- getSegmentProb(current_theta$posterior_sample, constants)
+  if (simulation_constants$exposure_control_method %in% c("BIGM-BAYESIAN")) {
+    segment_prob <- getSegmentProb(current_theta$posterior_sample, simulation_constants)
     segment      <- which.max(segment_prob)
     return(segment)
   }
 
 }
 
-#' @noRd
-isFirstSegmentValid <- function(first_segment, n_segment, position) {
-  if (
-    !is.null(first_segment) &&
-    all(first_segment %in% 1:n_segment) &&
-    length(first_segment) >= position) {
+#' (Internal) Check if customized first segments are available
+#'
+#' \code{\link{isCustomFirstSegmentAvailable}} is an internal function for
+#' checking if customized first segments are available.
+#'
+#' @param available \code{TRUE} or \code{FALSE}.
+#' This indicates whether segment values have been supplied in the config.
+#' @param n_values the number of supplied values.
+#' @param position the position within the current administration (i.e., test progress)
+#'
+#' @returns \code{\link{isCustomFirstSegmentAvailable}} returns \code{TRUE} or \code{FALSE}.
+#'
+#' @keywords internal
+isCustomFirstSegmentAvailable <- function(available, n_values, position) {
+  if (!available) {
+    return(FALSE)
+  }
+  if (position <= n_values) {
     return(TRUE)
   }
   return(FALSE)
 }
 
-#' @noRd
+#' (Internal) Update posterior densities
+#'
+#' \code{\link{updateThetaPosterior}} is an internal function
+#' for updating posterior densities using a response probabilty function.
+#'
+#' @param o a named list containing posterior densities and likelihoods.
+#' @param prob_resp a vector containing response probability on a single response category
+#' over a theta grid.
+#'
+#' @returns \code{\link{updateThetaPosterior}} returns an updated list.
+#'
+#' @keywords internal
 updateThetaPosterior <- function(o, prob_resp) {
 
   o$posterior <-
@@ -1191,7 +1313,16 @@ updateThetaPosterior <- function(o, prob_resp) {
 
 }
 
-#' @noRd
+#' (Internal) Convert posterior densities into an EAP estimate
+#'
+#' \code{\link{computeEAPFromPosterior}} is an internal function for converting posterior densities into an EAP estimate.
+#'
+#' @param posterior a named list posterior densities and likelihoods.
+#' @param theta_grid a vector containing quadrature points corresponding to the above.
+#'
+#' @returns \code{\link{computeEAPFromPosterior}} returns a named list containing an EAP theta estimate.
+#'
+#' @keywords internal
 computeEAPFromPosterior <- function(posterior, theta_grid) {
   o <- list()
   o$theta <- sum(posterior * theta_grid) / sum(posterior)
@@ -1199,7 +1330,17 @@ computeEAPFromPosterior <- function(posterior, theta_grid) {
   return(o)
 }
 
-#' @noRd
+#' (Internal) Apply shrinkage correction to theta estimate
+#'
+#' \code{\link{applyShrinkageCorrection}} is an internal function for applying shrinkage correction to a theta estimate.
+#'
+#' @param EAP a named list containing an EAP theta estimate.
+#' @param config_theta a list containing theta estimation configurations.
+#' @param j the examinee index. Used to parse the prior SD from the config.
+#'
+#' @returns \code{\link{applyShrinkageCorrection}} returns an updated list containing corrected EAP theta estimate.
+#'
+#' @keywords internal
 applyShrinkageCorrection <- function(EAP, config_theta, j) {
 
   if (toupper(config_theta$prior_dist) == "NORMAL" && config_theta$shrinkage_correction) {

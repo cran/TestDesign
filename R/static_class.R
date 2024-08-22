@@ -61,8 +61,10 @@ setClass("config_Static",
       msg <- sprintf("config@item_selection: unexpected $info_type '%s' (accepts FISHER)", toupper(object@item_selection$info_type))
       err <- c(err, msg)
     }
-    if (!toupper(object@MIP$solver) %in% c("RSYMPHONY", "GUROBI", "LPSOLVE", "RGLPK")) {
-      msg <- sprintf("config@MIP: unexpected $solver (accepts Rsymphony, gurobi, lpSolve, or Rglpk)", object@MIP$solver)
+    if (!object@MIP$solver %in% c("RSYMPHONY", "HIGHS", "GUROBI", "LPSOLVE", "RGLPK")) {
+      # only capitalized names are valid values;
+      # the rest of the package assumes this is capitalized
+      msg <- sprintf("config@MIP: unrecognized $solver '%s' (accepts RSYMPHONY, HIGHS, GUROBI, LPSOLVE, or RGLPK)", object@MIP$solver)
       err <- c(err, msg)
     }
 
@@ -90,7 +92,7 @@ setClass("config_Static",
 #'
 #' @param MIP a named list containing solver options.
 #' \itemize{
-#'   \item{\code{solver}} the type of solver. Accepts \code{Rsymphony, gurobi, lpSolve, Rglpk}. (default = \code{LPSOLVE})
+#'   \item{\code{solver}} the type of solver. Accepts \code{Rsymphony, highs, gurobi, lpSolve, Rglpk}. (default = \code{LPSOLVE})
 #'   \item{\code{verbosity}} verbosity level of the solver. (default = \code{-2})
 #'   \item{\code{time_limit}} time limit in seconds. Used in solvers \code{Rsymphony, gurobi, Rglpk}. (default = \code{60})
 #'   \item{\code{gap_limit}} search termination criterion. Gap limit in relative scale passed onto the solver. Used in solver \code{gurobi}. (default = \code{.05})
@@ -164,6 +166,8 @@ createStaticTestConfig <- function(item_selection = NULL, MIP = NULL) {
     }
   }
 
+  # ensure the solver name is capitalized here;
+  # the rest of the package assumes this is already done
   cfg@MIP$solver <- toupper(cfg@MIP$solver)
 
   if (is.null(item_selection$target_weight)) {
@@ -183,6 +187,7 @@ createStaticTestConfig <- function(item_selection = NULL, MIP = NULL) {
 #'
 #' \code{\linkS4class{output_Static}} is an S4 class for representing a fixed-form assembly solution.
 #'
+#' @slot call the function call used for obtaining this object.
 #' @slot MIP a list containing the result from MIP solver.
 #' @slot selected a \code{\link{data.frame}} containing the selected items and their attributes.
 #' @slot obj_value the objective value of the solution.
@@ -195,6 +200,7 @@ createStaticTestConfig <- function(item_selection = NULL, MIP = NULL) {
 #' @export
 setClass("output_Static",
   slots = c(
+    call        = "call",
     MIP         = "list_or_null",
     selected    = "dataframe_or_null",
     obj_value   = "numeric_or_null",

@@ -14,6 +14,7 @@ createShadowTestConfig(
   exclude_policy = NULL,
   refresh_policy = NULL,
   exposure_control = NULL,
+  overlap_control = NULL,
   stopping_criterion = NULL,
   interim_theta = NULL,
   final_theta = NULL,
@@ -37,7 +38,7 @@ createShadowTestConfig(
 
 \item{MIP}{a named list containing solver options.
 \itemize{
-  \item{\code{solver}} the type of solver. Accepts \code{Rsymphony, gurobi, lpSolve, Rglpk}. (default = \code{LPSOLVE})
+  \item{\code{solver}} the type of solver. Accepts \code{Rsymphony, highs, gurobi, lpSolve, Rglpk}. (default = \code{LPSOLVE})
   \item{\code{verbosity}} verbosity level of the solver. (default = \code{-2})
   \item{\code{time_limit}} time limit in seconds. Used in solvers \code{Rsymphony, gurobi, Rglpk}. (default = \code{60})
   \item{\code{gap_limit}} search termination criterion. Gap limit in relative scale passed onto the solver. Used in solver \code{gurobi}. (default = \code{.05})
@@ -60,7 +61,7 @@ createShadowTestConfig(
   \item{\code{M}} the Big M penalty to use on item information. Used in the \code{SOFT} method.
 }}
 
-\item{refresh_policy}{a named list containing the refresh policy for when to obtain a new shadow test.
+\item{refresh_policy}{a named list containing the refresh policy for when to obtain a new shadowtest.
 \itemize{
   \item{\code{method}} the type of policy. Accepts \code{ALWAYS, POSITION, INTERVAL, THRESHOLD, INTERVAL-THRESHOLD, STIMULUS, SET, PASSAGE}. (default = \code{ALWAYS})
   \item{\code{interval}} used in methods \code{INTERVAL, INTERVAL-THRESHOLD}. Set to 1 to refresh at each position, 2 to refresh at every two positions, and so on. (default = \code{1})
@@ -82,6 +83,13 @@ createShadowTestConfig(
   \item{\code{diagnostic_stats}} set to \code{TRUE} to generate segment-wise diagnostic statistics. (default = \code{FALSE})
 }}
 
+\item{overlap_control}{a named list containing overlap control settings.
+\itemize{
+  \item{\code{method}} the type of overlap control method. Accepts \code{NONE, ELIGIBILITY, BIGM, BIGM-BAYESIAN}. (default = \code{NONE})
+  \item{\code{M}} used in methods \code{BIGM, BIGM-BAYESIAN}. the Big M penalty to use on item information.
+  \item{\code{max_overlap_rate}} target overlap rate. (default = \code{0.20})
+}}
+
 \item{stopping_criterion}{a named list containing stopping criterion.
 \itemize{
   \item{\code{method}} the type of stopping criterion. Accepts \code{FIXED}. (default = \code{FIXED})
@@ -93,7 +101,7 @@ createShadowTestConfig(
 
 \item{interim_theta}{a named list containing interim theta estimation options.
 \itemize{
-  \item{\code{method}} the type of estimation. Accepts \code{EAP, MLE, MLEF, EB, FB}. (default = \code{EAP})
+  \item{\code{method}} the type of estimation. Accepts \code{EAP, MLE, MLEF, EB, FB, CARRYOVER}. (default = \code{EAP})
   \item{\code{shrinkage_correction}} set \code{TRUE} to apply shrinkage correction. Used when \code{method} is \code{EAP}. (default = \code{FALSE})
   \item{\code{prior_dist}} the type of prior distribution. Accepts \code{NORMAL, UNIFORM}. (default = \code{NORMAL})
   \item{\code{prior_par}} distribution parameters for \code{prior_dist}. (default = \code{c(0, 1)})
@@ -112,7 +120,7 @@ createShadowTestConfig(
 
 \item{final_theta}{a named list containing final theta estimation options.
 \itemize{
-  \item{\code{method}} the type of estimation. Accepts \code{EAP, MLE, MLEF, EB, FB}. (default = \code{EAP})
+  \item{\code{method}} the type of estimation. Accepts \code{EAP, MLE, MLEF, EB, FB, CARRYOVER}. (default = \code{EAP})
   \item{\code{shrinkage_correction}} set \code{TRUE} to apply shrinkage correction. Used when \code{method} is \code{EAP}. (default = \code{FALSE})
   \item{\code{prior_dist}} the type of prior distribution. Accepts \code{NORMAL, UNIFORM}. (default = \code{NORMAL})
   \item{\code{prior_par}} distribution parameters for \code{prior_dist}. (default = \code{c(0, 1)})
@@ -131,7 +139,7 @@ createShadowTestConfig(
 \item{theta_grid}{the theta grid to use as quadrature points.}
 }
 \description{
-\code{\link{createShadowTestConfig}} is a config function for creating a \code{\linkS4class{config_Shadow}} object for Shadow test assembly.
+\code{\link{createShadowTestConfig}} is a config function for creating a \code{\linkS4class{config_Shadow}} object for shadowtest assembly.
 Default values are used for any unspecified parameters/slots.
 }
 \examples{

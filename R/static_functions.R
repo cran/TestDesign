@@ -5,8 +5,8 @@ NULL
 #'
 #' \code{\link{Static}} is a test assembly function for performing fixed-form test assembly based on the generalized shadow-test framework.
 #'
-#' @template config_Static-param
-#' @template constraints-param
+#' @template parameter_config_Static
+#' @template parameter_constraints
 #' @template force_solver_param
 #'
 #' @return \code{\link{Static}} returns a \code{\linkS4class{output_Static}} object containing the selected items.
@@ -38,6 +38,8 @@ setMethod(
   f = "Static",
   signature = c("config_Static"),
   definition = function(config, constraints, force_solver = FALSE) {
+
+    function_call <- match.call()
 
     if (!validObject(config)) {
       stop("the 'config' argument is not a valid 'config_Static' object.")
@@ -71,15 +73,15 @@ setMethod(
 
     results <- runAssembly(config, constraints, objective = objective)
 
-    is_optimal <- isOptimal(results$status, config@MIP$solver)
-    if (!is_optimal) {
+    solution_is_optimal <- isSolutionOptimal(results$status, config@MIP$solver)
+    if (!solution_is_optimal) {
       printSolverNewline(config@MIP$solver)
       msg <- getSolverStatusMessage(results$status, config@MIP$solver)
       warning(msg, immediate. = TRUE)
     }
 
     tmp <- NULL
-    if (is_optimal) {
+    if (solution_is_optimal) {
       tmp <- getSolutionAttributes(
         constraints,
         results$shadow_test$INDEX,
@@ -88,6 +90,7 @@ setMethod(
     }
 
     o             <- new("output_Static")
+    o@call        <- function_call
     o@MIP         <- list(results$MIP)
     o@selected    <- results$shadow_test
     o@obj_value   <- results$obj_value

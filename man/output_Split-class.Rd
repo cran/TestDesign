@@ -10,6 +10,8 @@
 \section{Slots}{
 
 \describe{
+\item{\code{call}}{the function call used for obtaining this object.}
+
 \item{\code{output}}{a list containing item/set indices of each partition.}
 
 \item{\code{feasible}}{for partitioning into sub-pools, \code{TRUE} indicates the complete assignment problem was feasible.}
@@ -25,5 +27,7 @@
 \item{\code{partition_size_range}}{the partition size range for splitting into sub-pools.}
 
 \item{\code{partition_type}}{the partition type. Can be a \code{test} or a \code{pool}.}
+
+\item{\code{constraints_by_each_partition}}{a list of \code{\linkS4class{constraints}} objects that represent each partition.}
 }}
 
