@@ -2,7 +2,7 @@ Package: TestDesign
 Type: Package
 Title: Optimal Test Design Approach to Fixed and Adaptive Test
         Construction
-Version: 1.7.0
+Version: 1.7.1
 Authors@R: c(
     person("Seung W.", "Choi",
         email = "schoi@austin.utexas.edu",
@@ -22,13 +22,13 @@ BugReports: https://github.com/choi-phd/TestDesign/issues/
 License: GPL (>= 2)
 Depends: R (>= 4.0)
 biocViews:
-Imports: Rcpp (>= 1.0.0), methods, lpSolve, foreach, logitnorm, crayon
+Imports: Rcpp (>= 1.0.0), methods, lpSolve, foreach, logitnorm, crayon,
+        highs
 SystemRequirements: C++17
-Suggests: Rsymphony, highs, gurobi, Rglpk, mirt, mirtCAT, progress,
-        shiny, shinythemes, shinyWidgets, shinyjs, DT, knitr,
-        rmarkdown, kableExtra, testthat (>= 2.1.0), pkgdown, pkgload
+Suggests: Rsymphony, gurobi, Rglpk, mirt, mirtCAT, progress, shiny,
+        shinythemes, shinyWidgets, shinyjs, DT, knitr, rmarkdown,
+        kableExtra, testthat (>= 2.1.0), pkgdown, pkgload
 LinkingTo: Rcpp, RcppArmadillo
-RoxygenNote: 7.3.2
 Encoding: UTF-8
 LazyData: true
 VignetteBuilder: knitr
@@ -53,9 +53,11 @@ Collate: 'RcppExports.R' 'import.R' 'extensions.R' 'item_class.R'
         'simulation_data_cache_class.r'
         'simulation_data_cache_operators.r' 'theta_functions.R'
         'xdata_functions.R'
+Config/roxygen2/version: 8.1.0
 NeedsCompilation: yes
-Packaged: 2024-08-22 02:27:15 UTC; chois1
-Author: Seung W. Choi [aut, cre] (<https://orcid.org/0000-0003-4777-5420>),
-  Sangdon Lim [aut] (<https://orcid.org/0000-0002-2988-014X>)
+Packaged: 2026-09-07 18:52:30 UTC; chois1
+Author: Seung W. Choi [aut, cre] (ORCID:
+    <https://orcid.org/0000-0003-4777-5420>),
+  Sangdon Lim [aut] (ORCID: <https://orcid.org/0000-0002-2988-014X>)
 Repository: CRAN
-Date/Publication: 2024-08-22 10:50:02 UTC
+Date/Publication: 2026-09-08 07:10:03 UTC
